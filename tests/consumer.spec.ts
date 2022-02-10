@@ -1,7 +1,7 @@
 import { assert } from "chai"
 import * as pEvent from "p-event"
 import * as sinon from "sinon"
-import {Consumer} from "../src/consumer"
+import { Consumer } from "../src/consumer"
 
 const sandbox = sinon.createSandbox()
 
@@ -444,7 +444,7 @@ describe("Consumer", () => {
                         MessageAttributeNames: ["attribute-1", "attribute-2"],
                         MaxNumberOfMessages: 3,
                         WaitTimeSeconds: 20,
-                        VisibilityTimeout: undefined,
+                        VisibilityTimeout: 30,
                     })
                     sandbox.assert.callCount(handleMessage, 3)
                     consumer.stop()
@@ -482,10 +482,10 @@ describe("Consumer", () => {
             sandbox.assert.calledWith(sqs.receiveMessage, {
                 QueueUrl: "some-queue-url",
                 AttributeNames: ["ApproximateReceiveCount"],
-                MessageAttributeNames: [],
-                MaxNumberOfMessages: 1,
+                MessageAttributeNames: ["All"],
+                MaxNumberOfMessages: 10,
                 WaitTimeSeconds: 20,
-                VisibilityTimeout: undefined,
+                VisibilityTimeout: 30,
             })
 
             assert.equal(message, messageWithAttr)
@@ -620,7 +620,7 @@ describe("Consumer", () => {
                 region: "some-region",
                 handleMessage: () => new Promise((resolve) => setTimeout(resolve, 75000)),
                 sqs,
-                visibilityTimeout: 40,
+                visibilityTimeout: 70,
                 heartbeatInterval: 30,
             })
             const clearIntervalSpy = sinon.spy(global, "clearInterval")
@@ -632,12 +632,12 @@ describe("Consumer", () => {
             sandbox.assert.calledWith(sqs.changeMessageVisibility, {
                 QueueUrl: "some-queue-url",
                 ReceiptHandle: "receipt-handle",
-                VisibilityTimeout: 40,
+                VisibilityTimeout: 100,
             })
             sandbox.assert.calledWith(sqs.changeMessageVisibility, {
                 QueueUrl: "some-queue-url",
                 ReceiptHandle: "receipt-handle",
-                VisibilityTimeout: 40,
+                VisibilityTimeout: 100,
             })
             sandbox.assert.calledOnce(clearIntervalSpy)
         })
@@ -668,17 +668,17 @@ describe("Consumer", () => {
             sandbox.assert.calledWith(sqs.changeMessageVisibilityBatch, {
                 QueueUrl: "some-queue-url",
                 Entries: [
-                    { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 40 },
-                    { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 40 },
-                    { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 40 },
+                    { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 70 },
+                    { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 70 },
+                    { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 70 },
                 ],
             })
             sandbox.assert.calledWith(sqs.changeMessageVisibilityBatch, {
                 QueueUrl: "some-queue-url",
                 Entries: [
-                    { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 40 },
-                    { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 40 },
-                    { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 40 },
+                    { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 100 },
+                    { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 100 },
+                    { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 100 },
                 ],
             })
             sandbox.assert.calledOnce(clearIntervalSpy)

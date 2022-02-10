@@ -24,19 +24,6 @@ function createTimeout(duration: number): TimeoutResponse {
     return { timeout: timeout, pending: pending }
 }
 
-function assertOptions(options: ConsumerOptions): void {
-    if (options.batchSize != null && (options.batchSize > 10 || options.batchSize < 1)) {
-        throw new Error("SQS batchSize option must be between 1 and 10.")
-    }
-    if (
-        options.heartbeatInterval != null &&
-        options.visibilityTimeout != null &&
-        !(options.heartbeatInterval < options.visibilityTimeout)
-    ) {
-        throw new Error("heartbeatInterval must be less than visibilityTimeout.")
-    }
-}
-
 function isConnectionError(err: Error): boolean {
     if (err instanceof SQSError) {
         return err.statusCode === 403 || err.code === "CredentialsError" || err.code === "UnknownEndpoint"
@@ -106,7 +93,6 @@ export class Consumer extends EventEmitter {
 
     constructor(options: ConsumerOptions) {
         super()
-        assertOptions(options)
         this.queueUrl = options.queueUrl
         this.handleMessage = options.handleMessage
         this.handleMessageBatch = options.handleMessageBatch
@@ -115,7 +101,7 @@ export class Consumer extends EventEmitter {
         this.messageAttributeNames = options.messageAttributeNames || ["All"]
         this.stopped = true
         this.batchSize = options.batchSize || 10
-        this.visibilityTimeout = options.visibilityTimeout
+        this.visibilityTimeout = options.visibilityTimeout || 30
         this.terminateVisibilityTimeout = options.terminateVisibilityTimeout || false
         this.heartbeatInterval = options.heartbeatInterval || 5
         this.waitTimeSeconds = options.waitTimeSeconds || 20
@@ -128,7 +114,21 @@ export class Consumer extends EventEmitter {
                 region: options.region || process.env.AWS_REGION || "eu-west-1",
             })
 
+        this.assertOptions()
         autoBind(this)
+    }
+
+    private assertOptions(): void {
+        if (this.handleMessage == null && this.handleMessageBatch == null) {
+            throw new Error(`Missing SQS this option. One of handleMessage, handleMessageBatch must be set .`)
+        }
+
+        if (this.batchSize != null && (this.batchSize > 10 || this.batchSize < 1)) {
+            throw new Error("SQS batchSize option must be between 1 and 10.")
+        }
+        if (this.heartbeatInterval != null && this.heartbeatInterval >= this.visibilityTimeout) {
+            throw new Error("heartbeatInterval must be less than visibilityTimeout.")
+        }
     }
 
     emit<T extends keyof Events>(event: T, ...args: Events[T]) {
@@ -198,7 +198,7 @@ export class Consumer extends EventEmitter {
             await this.deleteMessage(message)
             this.emit("message_processed", message)
         } catch (err) {
-            this.emit("processing_error", err, message)
+            this.emitError(err, message)
 
             if (this.terminateVisibilityTimeout) {
                 await this.changeVisibilityTimeout(message, 0)
@@ -268,6 +268,16 @@ export class Consumer extends EventEmitter {
                 .promise()
         } catch (err) {
             this.emit("error", err, message)
+        }
+    }
+
+    private emitError(err: Error, message: SQSMessage): void {
+        if (err.name === SQSError.name) {
+            this.emit("error", err, message)
+        } else if (err instanceof TimeoutError) {
+            this.emit("timeout_error", err, message)
+        } else {
+            this.emit("processing_error", err, message)
         }
     }
 
