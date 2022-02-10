@@ -5,7 +5,7 @@ import { EventEmitter } from "events"
 import { autoBind } from "./bind"
 import { SQSError, TimeoutError } from "./errors"
 
-type ReceieveMessageResponse = PromiseResult<SQS.Types.ReceiveMessageResult, AWSError>
+type ReceiveMessageResponse = PromiseResult<SQS.Types.ReceiveMessageResult, AWSError>
 type ReceiveMessageRequest = SQS.Types.ReceiveMessageRequest
 export type SQSMessage = SQS.Types.Message
 
@@ -87,21 +87,22 @@ interface Events {
 }
 
 export class Consumer extends EventEmitter {
-    private queueUrl: string
-    private handleMessage?: (message: SQSMessage) => Promise<void>
-    private handleMessageBatch?: (message: SQSMessage[]) => Promise<void>
-    private handleMessageTimeout: number | null
-    private attributeNames: string[]
-    private messageAttributeNames: string[]
+    private readonly queueUrl: string
+    private readonly handleMessage?: (message: SQSMessage) => Promise<void>
+    private readonly handleMessageBatch?: (message: SQSMessage[]) => Promise<void>
+    private readonly handleMessageTimeout: number | null
+    private readonly attributeNames: string[]
+    private readonly messageAttributeNames: string[]
+    private readonly batchSize: number
+    private readonly visibilityTimeout: number | null
+    private readonly waitTimeSeconds: number
+    private readonly authenticationErrorTimeout: number
+    private readonly pollingWaitTimeMs: number
+    private readonly terminateVisibilityTimeout: boolean
+    private readonly heartbeatInterval: number
+    private readonly sqs: SQS
+
     private stopped: boolean
-    private batchSize: number
-    private visibilityTimeout: number | null
-    private waitTimeSeconds: number
-    private authenticationErrorTimeout: number
-    private pollingWaitTimeMs: number
-    private terminateVisibilityTimeout: boolean
-    private heartbeatInterval: number
-    private sqs: SQS
 
     constructor(options: ConsumerOptions) {
         super()
@@ -135,12 +136,10 @@ export class Consumer extends EventEmitter {
     }
 
     on<T extends keyof Events>(event: T, listener: (...args: Events[T]) => void): this {
-        // @ts-ignore
         return super.on(event, listener)
     }
 
     once<T extends keyof Events>(event: T, listener: (...args: Events[T]) => void): this {
-        // @ts-ignore
         return super.once(event, listener)
     }
 
@@ -163,7 +162,7 @@ export class Consumer extends EventEmitter {
         this.stopped = true
     }
 
-    private async handleSqsResponse(response: ReceieveMessageResponse): Promise<void> {
+    private async handleSqsResponse(response: ReceiveMessageResponse): Promise<void> {
         if (response) {
             if (response.Messages && response.Messages.length > 0) {
                 // const processedMessages = processIncomingSqsMessages(response.Messages)
@@ -192,7 +191,7 @@ export class Consumer extends EventEmitter {
         try {
             if (this.heartbeatInterval) {
                 heartbeat = this.startHeartbeat(async (elapsedSeconds) => {
-                    return this.changeVisabilityTimeout(message, elapsedSeconds + (this.visibilityTimeout || 0))
+                    return this.changeVisibilityTimeout(message, elapsedSeconds + (this.visibilityTimeout || 0))
                 })
             }
             await this.executeHandler(message)
@@ -202,7 +201,7 @@ export class Consumer extends EventEmitter {
             this.emit("processing_error", err, message)
 
             if (this.terminateVisibilityTimeout) {
-                await this.changeVisabilityTimeout(message, 0)
+                await this.changeVisibilityTimeout(message, 0)
             }
         } finally {
             if (heartbeat) {
@@ -211,7 +210,7 @@ export class Consumer extends EventEmitter {
         }
     }
 
-    private async receiveMessage(params: ReceiveMessageRequest): Promise<ReceieveMessageResponse> {
+    private async receiveMessage(params: ReceiveMessageRequest): Promise<ReceiveMessageResponse> {
         try {
             return await this.sqs.receiveMessage(params).promise()
         } catch (err) {
@@ -258,7 +257,7 @@ export class Consumer extends EventEmitter {
         }
     }
 
-    private async changeVisabilityTimeout(message: SQSMessage, timeout: number): Promise<PromiseResult<any, AWSError>> {
+    private async changeVisibilityTimeout(message: SQSMessage, timeout: number): Promise<PromiseResult<any, AWSError>> {
         try {
             return this.sqs
                 .changeMessageVisibility({
