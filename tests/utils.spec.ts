@@ -79,6 +79,9 @@ describe("isPollingReadyForNextReceive", () => {
     it("returns false if there is no space for next 10 messages", () => {
         expect(isPollingReadyForNextReceive(100, 91)).to.be.false
     })
+    it("returns false if there is no space for next 3 messages", () => {
+        expect(isPollingReadyForNextReceive(3, 1)).to.be.false
+    })
 })
 
 const createMessage = (
@@ -99,4 +102,5 @@ const createMessage = (
     },
     processing: processing,
     arrivedAt: arrived,
+    processingStartedAt: 0,
 })

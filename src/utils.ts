@@ -17,5 +17,5 @@ export const groupMessageBatchByArrivedTime = (batch: PendingMessages): PendingM
 }
 
 export const isPollingReadyForNextReceive = (batchSize: number, pendingSize: number): boolean => {
-    return pendingSize + 10 <= batchSize
+    return pendingSize + Math.min(10, batchSize) <= batchSize
 }

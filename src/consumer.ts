@@ -199,7 +199,7 @@ export class Consumer extends EventEmitter {
                 return
             })
             .then(() => {
-                if (isPollingReadyForNextReceive(this.batchSize, this.pendingMessages.length)) {
+                if (!this.stopped && isPollingReadyForNextReceive(this.batchSize, this.pendingMessages.length)) {
                     setTimeout(this.pollSqs, currentPollingTimeout)
                 } else {
                     this.pollingStopped = true
@@ -243,10 +243,6 @@ export class Consumer extends EventEmitter {
 
         this.processMessage(message).then(() => {
             setImmediate(this.processNextPendingMessage)
-
-            if (this.pollingStopped && isPollingReadyForNextReceive(this.batchSize, this.pendingMessages.length)) {
-                setImmediate(this.pollSqs)
-            }
         })
 
         setImmediate(this.processNextPendingMessage)
@@ -272,6 +268,10 @@ export class Consumer extends EventEmitter {
                 messagesProcessing: this.pendingMessages.filter((m) => m.processing === true).length,
                 messagesWaiting: this.pendingMessages.filter((m) => m.processing === false).length,
             })
+
+            if (this.pollingStopped && isPollingReadyForNextReceive(this.batchSize, this.pendingMessages.length)) {
+                setImmediate(this.pollSqs)
+            }
         } catch (err) {
             this.emitError(err, sqsMsg)
 
