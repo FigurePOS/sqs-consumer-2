@@ -3,11 +3,11 @@ import { PendingMessage, PendingMessages } from "./consumer"
 export const getNextPendingMessage = (batch: PendingMessages): PendingMessage | null => {
     return batch
         .filter(
-            (b) =>
+            (msg) =>
                 !batch
                     .filter((e) => e.processing && e.sqsMessage.Attributes?.MessageGroupId != null)
                     .map((e) => e.sqsMessage.Attributes?.MessageGroupId)
-                    .includes(b.sqsMessage.Attributes?.MessageGroupId),
+                    .includes(msg.sqsMessage.Attributes?.MessageGroupId),
         )
         .find((b) => !b.processing)
 }

@@ -2,7 +2,7 @@ import { assert, expect } from "chai"
 import { getNextPendingMessage, groupMessageBatchByArrivedTime } from "../src/utils"
 import { PendingMessage } from "../src/consumer"
 
-describe("getNextMessageForProcessing", () => {
+describe("getNextPendingMessage", () => {
     it("return null given empty message batch", () => {
         const batch = []
         const result = null

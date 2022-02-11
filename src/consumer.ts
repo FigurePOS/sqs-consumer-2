@@ -236,8 +236,6 @@ export class Consumer extends EventEmitter {
         this.processMessage(message.sqsMessage).then(() => {
             setImmediate(this.processNextPendingMessage)
         })
-
-        setImmediate(this.processNextPendingMessage)
     }
 
     private async processMessage(message: SQSMessage): Promise<void> {
@@ -273,7 +271,7 @@ export class Consumer extends EventEmitter {
         try {
             // delete from pending messages
             const messageIndex = this.pendingMessages.findIndex((m) => m.sqsMessage.MessageId === message.MessageId)
-            this.pendingMessages.splice(messageIndex)
+            this.pendingMessages.splice(messageIndex, 1)
 
             await this.sqs.deleteMessage(deleteParams).promise()
         } catch (err) {
@@ -350,11 +348,11 @@ export class Consumer extends EventEmitter {
     private startHeartbeat(): void {
         this.heartbeatTimeout = setInterval(async () => {
             const now = Date.now()
-            const batches = groupMessageBatchByArrivedTime(this.pendingMessages)
-            for (const b of batches) {
-                const elapsedSeconds = Math.ceil((now - b[0].arrivedAt) / 1000)
+            const messages = groupMessageBatchByArrivedTime(this.pendingMessages)
+            for (const msg of messages) {
+                const elapsedSeconds = Math.ceil((now - msg[0].arrivedAt) / 1000)
                 await this.changeVisibilityTimeoutBatch(
-                    b.map((a) => a.sqsMessage),
+                    msg.map((a) => a.sqsMessage),
                     elapsedSeconds + (this.visibilityTimeout || 0),
                 )
             }

@@ -12,6 +12,14 @@ function stubResolve(value?: any): any {
     return sandbox.stub().returns({ promise: sandbox.stub().resolves(value) })
 }
 
+function stubResolveOnce(value?: any): any {
+    return sandbox
+        .stub()
+        .onFirstCall()
+        .returns({ promise: sandbox.stub().resolves(value) })
+        .returns({ promise: sandbox.stub().resolves([]) })
+}
+
 function stubReject(value?: any): any {
     return sandbox.stub().returns({ promise: sandbox.stub().rejects(value) })
 }
@@ -359,7 +367,31 @@ describe("Consumer", () => {
             sandbox.assert.notCalled(sqs.deleteMessage)
         })
 
-        it.skip("consumes another message once one is processed", async () => {
+        it("consumes another message once one is processed", async () => {
+            sqs.receiveMessage = stubResolveOnce({
+                Messages: [
+                    {
+                        ReceiptHandle: "receipt-handle-1",
+                        MessageId: "1",
+                        Body: "body-1",
+                    },
+                    {
+                        ReceiptHandle: "receipt-handle-2",
+                        MessageId: "2",
+                        Body: "body-2",
+                    },
+                ],
+            })
+
+            consumer = new Consumer({
+                queueUrl: "some-queue-url",
+                messageAttributeNames: ["attribute-1", "attribute-2"],
+                region: "some-region",
+                handleMessage,
+                batchSize: 2,
+                sqs,
+            })
+
             handleMessage.resolves()
 
             consumer.start()
