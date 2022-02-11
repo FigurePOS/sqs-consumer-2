@@ -1,5 +1,5 @@
 import { assert, expect } from "chai"
-import { getNextPendingMessage, groupMessageBatchByArrivedTime } from "../src/utils"
+import { getNextPendingMessage, groupMessageBatchByArrivedTime, isPollingReadyForNextReceive } from "../src/utils"
 import { PendingMessage } from "../src/consumer"
 
 describe("getNextPendingMessage", () => {
@@ -63,6 +63,21 @@ describe("groupMessageBatchByArrivedTime", () => {
         ]
 
         expect(groupMessageBatchByArrivedTime(batch)).to.deep.equal(result)
+    })
+})
+
+describe("isPollingReadyForNextReceive", () => {
+    it("returns false if the batch is completely full", () => {
+        expect(isPollingReadyForNextReceive(100, 100)).to.be.false
+    })
+    it("returns true if the batch is completely empty", () => {
+        expect(isPollingReadyForNextReceive(100, 0)).to.be.true
+    })
+    it("returns true if there is still space for next 10 messages", () => {
+        expect(isPollingReadyForNextReceive(100, 90)).to.be.true
+    })
+    it("returns false if there is no space for next 10 messages", () => {
+        expect(isPollingReadyForNextReceive(100, 91)).to.be.false
     })
 })
 

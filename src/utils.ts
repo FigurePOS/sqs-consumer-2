@@ -15,3 +15,7 @@ export const getNextPendingMessage = (batch: PendingMessages): PendingMessage | 
 export const groupMessageBatchByArrivedTime = (batch: PendingMessages): PendingMessages[] => {
     return [...new Set(batch.map((w) => w.arrivedAt))].map((arrived) => batch.filter((w) => w.arrivedAt === arrived))
 }
+
+export const isPollingReadyForNextReceive = (batchSize: number, pendingSize: number): boolean => {
+    return pendingSize + 10 <= batchSize
+}

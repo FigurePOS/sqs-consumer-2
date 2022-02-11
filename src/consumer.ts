@@ -4,7 +4,7 @@ import { PromiseResult } from "aws-sdk/lib/request"
 import { EventEmitter } from "events"
 import { autoBind } from "./bind"
 import { SQSError, TimeoutError } from "./errors"
-import { getNextPendingMessage, groupMessageBatchByArrivedTime } from "./utils"
+import { getNextPendingMessage, groupMessageBatchByArrivedTime, isPollingReadyForNextReceive } from "./utils"
 
 type ReceiveMessageResponse = PromiseResult<SQS.Types.ReceiveMessageResult, AWSError>
 type ReceiveMessageRequest = SQS.Types.ReceiveMessageRequest
@@ -97,6 +97,7 @@ export class Consumer extends EventEmitter {
     private readonly pendingMessages: PendingMessages
 
     private stopped: boolean
+    private pollingStopped: boolean
     private heartbeatTimeout: NodeJS.Timeout
 
     constructor(options: ConsumerOptions) {
@@ -107,6 +108,7 @@ export class Consumer extends EventEmitter {
         this.attributeNames = Array.from(new Set([...(options.attributeNames || []), "MessageGroupId"]))
         this.messageAttributeNames = options.messageAttributeNames || ["All"]
         this.stopped = true
+        this.pollingStopped = true
         this.batchSize = options.batchSize || 10
         this.visibilityTimeout = options.visibilityTimeout || 30
         this.terminateVisibilityTimeout = options.terminateVisibilityTimeout || false
@@ -119,7 +121,7 @@ export class Consumer extends EventEmitter {
         this.sqs =
             options.sqs ||
             new SQS({
-                region: options.region || process.env.AWS_REGION || "eu-west-1",
+                region: options.region || process.env.AWS_REGION || "us-east-1",
             })
 
         this.assertOptions()
@@ -174,6 +176,8 @@ export class Consumer extends EventEmitter {
             return
         }
 
+        this.pollingStopped = false
+
         const receiveParams = {
             QueueUrl: this.queueUrl,
             AttributeNames: this.attributeNames,
@@ -194,8 +198,10 @@ export class Consumer extends EventEmitter {
                 return
             })
             .then(() => {
-                if (this.pendingMessages.length < this.batchSize) {
+                if (isPollingReadyForNextReceive(this.batchSize, this.pendingMessages.length)) {
                     setTimeout(this.pollSqs, currentPollingTimeout)
+                } else {
+                    this.pollingStopped = true
                 }
             })
             .catch((err) => {
@@ -234,6 +240,10 @@ export class Consumer extends EventEmitter {
 
         this.processMessage(message.sqsMessage).then(() => {
             setImmediate(this.processNextPendingMessage)
+
+            if (this.pollingStopped && isPollingReadyForNextReceive(this.batchSize, this.pendingMessages.length)) {
+                setImmediate(this.pollSqs)
+            }
         })
 
         setImmediate(this.processNextPendingMessage)
