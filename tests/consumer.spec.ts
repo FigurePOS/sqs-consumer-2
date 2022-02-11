@@ -12,14 +12,6 @@ function stubResolve(value?: any): any {
     return sandbox.stub().returns({ promise: sandbox.stub().resolves(value) })
 }
 
-function stubResolveOnce(value?: any): any {
-    return sandbox
-        .stub()
-        .onFirstCall()
-        .returns({ promise: sandbox.stub().resolves(value) })
-        .returns({ promise: sandbox.stub().resolves([]) })
-}
-
 function stubReject(value?: any): any {
     return sandbox.stub().returns({ promise: sandbox.stub().rejects(value) })
 }
@@ -368,35 +360,10 @@ describe("Consumer", () => {
         })
 
         it("consumes another message once one is processed", async () => {
-            sqs.receiveMessage = stubResolveOnce({
-                Messages: [
-                    {
-                        ReceiptHandle: "receipt-handle-1",
-                        MessageId: "1",
-                        Body: "body-1",
-                    },
-                    {
-                        ReceiptHandle: "receipt-handle-2",
-                        MessageId: "2",
-                        Body: "body-2",
-                    },
-                ],
-            })
-
-            consumer = new Consumer({
-                queueUrl: "some-queue-url",
-                messageAttributeNames: ["attribute-1", "attribute-2"],
-                region: "some-region",
-                handleMessage,
-                batchSize: 2,
-                sqs,
-            })
-
-            handleMessage.resolves()
+            handleMessage.onSecondCall().callsFake(consumer.stop).resolves()
 
             consumer.start()
             await clock.runToLastAsync()
-            consumer.stop()
 
             sandbox.assert.calledTwice(handleMessage)
         })
@@ -413,7 +380,7 @@ describe("Consumer", () => {
             sandbox.assert.calledOnce(sqs.receiveMessage)
         })
 
-        it.skip("consumes multiple messages when the batchSize is greater than 1", async () => {
+        it("consumes multiple messages when the batchSize is greater than 1", async () => {
             sqs.receiveMessage = stubResolve({
                 Messages: [
                     {
@@ -445,21 +412,20 @@ describe("Consumer", () => {
 
             consumer.start()
 
-            return new Promise((resolve) => {
-                handleMessage.onThirdCall().callsFake(() => {
-                    sandbox.assert.calledWith(sqs.receiveMessage, {
-                        QueueUrl: "some-queue-url",
-                        AttributeNames: [],
-                        MessageAttributeNames: ["attribute-1", "attribute-2"],
-                        MaxNumberOfMessages: 3,
-                        WaitTimeSeconds: 20,
-                        VisibilityTimeout: 30,
-                    })
-                    sandbox.assert.callCount(handleMessage, 3)
-                    consumer.stop()
-                    resolve()
-                })
+            await clock.nextAsync()
+            await clock.nextAsync()
+
+            sandbox.assert.calledWith(sqs.receiveMessage, {
+                QueueUrl: "some-queue-url",
+                MessageAttributeNames: ["attribute-1", "attribute-2"],
+                AttributeNames: ["MessageGroupId"],
+                MaxNumberOfMessages: 3,
+                WaitTimeSeconds: 20,
+                VisibilityTimeout: 30,
             })
+            sandbox.assert.callCount(handleMessage, 3)
+
+            consumer.stop()
         })
 
         it("consumes messages with message attribute 'ApproximateReceiveCount'", async () => {
@@ -500,14 +466,6 @@ describe("Consumer", () => {
             assert.equal(message, messageWithAttr)
         })
 
-        it.skip("fires an emptyQueue event when all messages have been consumed", async () => {
-            sqs.receiveMessage = stubResolve({})
-
-            consumer.start()
-            await pEvent(consumer, "empty")
-            consumer.stop()
-        })
-
         it("terminate message visibility timeout on processing error", async () => {
             handleMessage.rejects(new Error("Processing error"))
 
@@ -535,7 +493,7 @@ describe("Consumer", () => {
             sandbox.assert.notCalled(sqs.changeMessageVisibility)
         })
 
-        it.skip("fires error event when failed to terminate visibility timeout on processing error", async () => {
+        it("fires error event when failed to terminate visibility timeout on processing error", async () => {
             handleMessage.rejects(new Error("Processing error"))
 
             const sqsError = new Error("Processing error")
@@ -554,68 +512,7 @@ describe("Consumer", () => {
             })
         })
 
-        it.skip("fires response_processed event for each batch", async () => {
-            sqs.receiveMessage = stubResolve({
-                Messages: [
-                    {
-                        ReceiptHandle: "receipt-handle-1",
-                        MessageId: "1",
-                        Body: "body-1",
-                    },
-                    {
-                        ReceiptHandle: "receipt-handle-2",
-                        MessageId: "2",
-                        Body: "body-2",
-                    },
-                ],
-            })
-            handleMessage.resolves(null)
-
-            consumer = new Consumer({
-                queueUrl: "some-queue-url",
-                messageAttributeNames: ["attribute-1", "attribute-2"],
-                region: "some-region",
-                handleMessage,
-                batchSize: 2,
-                sqs,
-            })
-
-            consumer.start()
-            await pEvent(consumer, "response_processed")
-            consumer.stop()
-
-            sandbox.assert.callCount(handleMessage, 2)
-        })
-
-        it.skip("uses the correct visibility timeout for long running handler functions", async () => {
-            consumer = new Consumer({
-                queueUrl: "some-queue-url",
-                region: "some-region",
-                handleMessage: () => new Promise((resolve) => setTimeout(resolve, 75000)),
-                sqs,
-                visibilityTimeout: 70,
-                heartbeatInterval: 30,
-            })
-            const clearIntervalSpy = sinon.spy(global, "clearInterval")
-
-            consumer.start()
-            await Promise.all([pEvent(consumer, "response_processed"), clock.tickAsync(75000)])
-            consumer.stop()
-
-            sandbox.assert.calledWith(sqs.changeMessageVisibility, {
-                QueueUrl: "some-queue-url",
-                ReceiptHandle: "receipt-handle",
-                VisibilityTimeout: 100,
-            })
-            sandbox.assert.calledWith(sqs.changeMessageVisibility, {
-                QueueUrl: "some-queue-url",
-                ReceiptHandle: "receipt-handle",
-                VisibilityTimeout: 100,
-            })
-            sandbox.assert.calledOnce(clearIntervalSpy)
-        })
-
-        it.skip("passes in the correct visibility timeout for long running batch handler functions", async () => {
+        it("passes in the correct visibility timeout for long running handler functions", async () => {
             sqs.receiveMessage = stubResolve({
                 Messages: [
                     { MessageId: "1", ReceiptHandle: "receipt-handle-1", Body: "body-1" },
@@ -635,7 +532,7 @@ describe("Consumer", () => {
             const clearIntervalSpy = sinon.spy(global, "clearInterval")
 
             consumer.start()
-            await Promise.all([pEvent(consumer, "response_processed"), clock.tickAsync(75000)])
+            await clock.tickAsync(75000)
             consumer.stop()
 
             sandbox.assert.calledWith(sqs.changeMessageVisibilityBatch, {

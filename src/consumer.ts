@@ -63,7 +63,6 @@ export interface ConsumerOptions {
 }
 
 interface Events {
-    response_processed: []
     empty: []
     message_received: [SQSMessage]
     message_processed: [SQSMessage]
@@ -209,7 +208,6 @@ export class Consumer extends EventEmitter {
             return
         }
         if (response.Messages.length === 0) {
-            //this.emit("empty")
             return
         }
 
@@ -228,6 +226,7 @@ export class Consumer extends EventEmitter {
     private processNextPendingMessage(): void {
         const message = getNextPendingMessage(this.pendingMessages)
         if (!message) {
+            this.emit("empty")
             return
         }
 
@@ -306,7 +305,7 @@ export class Consumer extends EventEmitter {
 
     private async changeVisibilityTimeout(message: SQSMessage, timeout: number): Promise<PromiseResult<any, AWSError>> {
         try {
-            return this.sqs
+            return await this.sqs
                 .changeMessageVisibility({
                     QueueUrl: this.queueUrl,
                     ReceiptHandle: message.ReceiptHandle || "",
