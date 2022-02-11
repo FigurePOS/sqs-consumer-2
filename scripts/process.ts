@@ -8,16 +8,14 @@ const random = (min, max) => {
 export const run = () => {
     const queueUrl = "https://sqs.us-east-1.amazonaws.com/880892332156/_testing_sqs_consumer.fifo"
     const processingTimeFrom = 0.5
-    const processingTimeTo = 2
+    const processingTimeTo = 4
     const batchSize = 100
 
     const consumer = Consumer.create({
         queueUrl: queueUrl,
         handleMessage: (msg) =>
             new Promise((res) => {
-                console.log(`Start ${msg.Body}`)
                 setTimeout(() => {
-                    console.log(`End ${msg.Body}`)
                     res()
                 }, random(processingTimeFrom, processingTimeTo) * 1000)
             }),
@@ -29,6 +27,10 @@ export const run = () => {
             //     secretAccessKey: "foobar",
             // },
         }),
+    })
+
+    consumer.on("message_processed", (msg: AWS.SQS.Message, data: any) => {
+        console.log(JSON.stringify({ ...JSON.parse(msg.Body), ...data }))
     })
 
     consumer.start()

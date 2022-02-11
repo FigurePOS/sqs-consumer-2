@@ -65,7 +65,7 @@ export interface ConsumerOptions {
 interface Events {
     empty: []
     message_received: [SQSMessage]
-    message_processed: [SQSMessage]
+    message_processed: [SQSMessage, any]
     error: [Error, void | SQSMessage | SQSMessage[]]
     timeout_error: [Error, SQSMessage]
     processing_error: [Error, SQSMessage]
@@ -76,6 +76,7 @@ export type PendingMessage = {
     sqsMessage: SQSMessage
     processing: boolean
     arrivedAt: number
+    processingStartedAt: number | null
 }
 
 export type PendingMessages = PendingMessage[]
@@ -222,6 +223,7 @@ export class Consumer extends EventEmitter {
             sqsMessage: message,
             processing: false,
             arrivedAt: current,
+            processingStartedAt: null,
         }))
 
         this.pendingMessages.push(...batch)
@@ -237,8 +239,9 @@ export class Consumer extends EventEmitter {
         }
 
         message.processing = true
+        message.processingStartedAt = Date.now()
 
-        this.processMessage(message.sqsMessage).then(() => {
+        this.processMessage(message).then(() => {
             setImmediate(this.processNextPendingMessage)
 
             if (this.pollingStopped && isPollingReadyForNextReceive(this.batchSize, this.pendingMessages.length)) {
@@ -249,18 +252,31 @@ export class Consumer extends EventEmitter {
         setImmediate(this.processNextPendingMessage)
     }
 
-    private async processMessage(message: SQSMessage): Promise<void> {
-        this.emit("message_received", message)
+    private async processMessage(message: PendingMessage): Promise<void> {
+        const sqsMsg = message.sqsMessage
+
+        this.emit("message_received", sqsMsg)
 
         try {
-            await this.executeHandler(message)
-            await this.deleteMessage(message)
-            this.emit("message_processed", message)
+            await this.executeHandler(sqsMsg)
+            await this.deleteMessage(sqsMsg)
+
+            const now = Date.now()
+            this.emit("message_processed", sqsMsg, {
+                arrivedAt: message.arrivedAt,
+                processingStartedAt: message.processingStartedAt,
+                processedAt: now,
+                waitingTime: message.processingStartedAt - message.arrivedAt,
+                processingTime: now - message.processingStartedAt,
+                totalTime: now - message.arrivedAt,
+                messagesProcessing: this.pendingMessages.filter((m) => m.processing === true).length,
+                messagesWaiting: this.pendingMessages.filter((m) => m.processing === false).length,
+            })
         } catch (err) {
-            this.emitError(err, message)
+            this.emitError(err, sqsMsg)
 
             if (this.terminateVisibilityTimeout) {
-                await this.changeVisibilityTimeout(message, 0)
+                await this.changeVisibilityTimeout(sqsMsg, 0)
             }
         }
     }

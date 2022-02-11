@@ -21,4 +21,4 @@ create_queue_result=$(aws sqs create-queue \
 export devstack_queue_url=$(echo $create_queue_result | jq .QueueUrl | xargs)
 echo "Message queue URL: $devstack_queue_url"
 
-node -r ts-node/register "scripts/$2.ts"
+node -r ts-node/register "scripts/$1.ts"
