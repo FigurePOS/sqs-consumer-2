@@ -20,21 +20,29 @@ const range = (from, to) => {
 }
 
 const run = async () => {
-    const queueUrl = "https://sqs.us-east-1.amazonaws.com/880892332156/_devstack_jirijanecek_PaymentService_Queue.fifo"
+    const queueUrl = "https://sqs.us-east-1.amazonaws.com/880892332156/_testing_sqs_consumer.fifo"
     const numberOfMessages = 1000
-    const numberOfGroups = 10
+    const numberOfGroups = 20
 
-    const sqs = new AWS.SQS({ region: "us-east-1" })
+    const sqs = new AWS.SQS({
+        region: "us-east-1",
+        // credentials: {
+        //     accessKeyId: "foobar",
+        //     secretAccessKey: "foobar",
+        // },
+    })
     const batch = range(0, numberOfMessages)
     const batches = splitEvery(10, batch)
+
+    console.log("Starting pushing to queue...")
 
     for (const batch of batches) {
         await sqs
             .sendMessageBatch({
                 QueueUrl: queueUrl,
                 Entries: batch.map((e) => {
-                    const id = `${e}`
-                    const group = `${e % numberOfGroups}`
+                    const id = e.toString()
+                    const group = (e % numberOfGroups).toString()
                     return {
                         Id: id,
                         MessageBody: JSON.stringify({ id: id, group: group }),
@@ -44,6 +52,8 @@ const run = async () => {
                 }),
             })
             .promise()
+
+        console.log("Batch pushed to queue...")
     }
 
     console.log("Done.")

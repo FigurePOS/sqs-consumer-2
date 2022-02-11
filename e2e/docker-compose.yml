@@ -1,0 +1,17 @@
+version: "3.7"
+
+services:
+  aws:
+    image: localstack/localstack:0.14.0
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=sqs
+      - DEBUG=true
+      - USE_SSL=false
+      - DEFAULT_REGION=us-east-1
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - AWS_ACCESS_KEY_ID=foobar
+      - AWS_SECRET_ACCESS_KEY=foobar
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
