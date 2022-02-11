@@ -236,6 +236,8 @@ export class Consumer extends EventEmitter {
         this.processMessage(message.sqsMessage).then(() => {
             setImmediate(this.processNextPendingMessage)
         })
+
+        setImmediate(this.processNextPendingMessage)
     }
 
     private async processMessage(message: SQSMessage): Promise<void> {
