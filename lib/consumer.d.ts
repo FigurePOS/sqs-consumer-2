@@ -1,40 +1,6 @@
 /// <reference types="node" />
-import * as SQS from "aws-sdk/clients/sqs";
 import { EventEmitter } from "events";
-export declare type SQSMessage = SQS.Types.Message;
-export interface ConsumerOptions {
-    queueUrl: string;
-    attributeNames?: string[];
-    messageAttributeNames?: string[];
-    stopped?: boolean;
-    batchSize?: number;
-    visibilityTimeout?: number;
-    waitTimeSeconds?: number;
-    authenticationErrorTimeout?: number;
-    pollingWaitTimeMs?: number;
-    terminateVisibilityTimeout?: boolean;
-    heartbeatInterval?: number;
-    sqs?: SQS;
-    region?: string;
-    handleMessageTimeout?: number;
-    handleMessage(message: SQSMessage): Promise<void>;
-}
-interface Events {
-    response_processed: [];
-    empty: [];
-    message_received: [SQSMessage];
-    message_processed: [SQSMessage];
-    error: [Error, void | SQSMessage | SQSMessage[]];
-    timeout_error: [Error, SQSMessage];
-    processing_error: [Error, SQSMessage];
-    stopped: [];
-}
-export declare type PendingMessage = {
-    sqsMessage: SQSMessage;
-    processing: boolean;
-    arrivedAt: number;
-};
-export declare type PendingMessages = PendingMessage[];
+import { ConsumerOptions, Events } from "./types";
 export declare class Consumer extends EventEmitter {
     private readonly queueUrl;
     private readonly handleMessage;
@@ -51,6 +17,7 @@ export declare class Consumer extends EventEmitter {
     private readonly sqs;
     private readonly pendingMessages;
     private stopped;
+    private pollingStopped;
     private heartbeatTimeout;
     constructor(options: ConsumerOptions);
     private assertOptions;
@@ -74,4 +41,3 @@ export declare class Consumer extends EventEmitter {
     private startHeartbeat;
     private stopHeartbeat;
 }
-export {};

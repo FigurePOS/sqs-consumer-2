@@ -1,6 +1,6 @@
 import { assert, expect } from "chai"
 import { getNextPendingMessage, groupMessageBatchByArrivedTime, isPollingReadyForNextReceive } from "../src/utils"
-import { PendingMessage } from "../src/consumer"
+import { PendingMessage } from "../src/types"
 
 describe("getNextPendingMessage", () => {
     it("return null given empty message batch", () => {

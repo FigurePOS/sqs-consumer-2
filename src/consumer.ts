@@ -4,82 +4,18 @@ import { PromiseResult } from "aws-sdk/lib/request"
 import { EventEmitter } from "events"
 import { autoBind } from "./bind"
 import { SQSError, TimeoutError } from "./errors"
-import { getNextPendingMessage, groupMessageBatchByArrivedTime, isPollingReadyForNextReceive } from "./utils"
+import {
+    createTimeout,
+    getNextPendingMessage,
+    groupMessageBatchByArrivedTime,
+    isConnectionError,
+    isPollingReadyForNextReceive,
+    toSQSError,
+} from "./utils"
+import { ConsumerOptions, Events, PendingMessage, PendingMessages, SQSMessage } from "./types"
 
 type ReceiveMessageResponse = PromiseResult<SQS.Types.ReceiveMessageResult, AWSError>
 type ReceiveMessageRequest = SQS.Types.ReceiveMessageRequest
-export type SQSMessage = SQS.Types.Message
-
-interface TimeoutResponse {
-    timeout: NodeJS.Timeout | null
-    pending: Promise<void>
-}
-
-function createTimeout(duration: number): TimeoutResponse {
-    let timeout = null
-    const pending: Promise<void> = new Promise((_, reject) => {
-        timeout = setTimeout((): void => {
-            reject(new TimeoutError())
-        }, duration)
-    })
-    return { timeout: timeout, pending: pending }
-}
-
-function isConnectionError(err: Error): boolean {
-    if (err instanceof SQSError) {
-        return err.statusCode === 403 || err.code === "CredentialsError" || err.code === "UnknownEndpoint"
-    }
-    return false
-}
-
-function toSQSError(err: AWSError, message: string): SQSError {
-    const sqsError = new SQSError(message)
-    sqsError.code = err.code
-    sqsError.statusCode = err.statusCode
-    sqsError.region = err.region
-    sqsError.retryable = err.retryable
-    sqsError.hostname = err.hostname
-    sqsError.time = err.time
-
-    return sqsError
-}
-
-export interface ConsumerOptions {
-    queueUrl: string
-    attributeNames?: string[]
-    messageAttributeNames?: string[]
-    stopped?: boolean
-    batchSize?: number
-    visibilityTimeout?: number
-    waitTimeSeconds?: number
-    authenticationErrorTimeout?: number
-    pollingWaitTimeMs?: number
-    terminateVisibilityTimeout?: boolean
-    heartbeatInterval?: number
-    sqs?: SQS
-    region?: string
-    handleMessageTimeout?: number
-    handleMessage(message: SQSMessage): Promise<void>
-}
-
-interface Events {
-    empty: []
-    message_received: [SQSMessage]
-    message_processed: [SQSMessage, any]
-    error: [Error, void | SQSMessage | SQSMessage[]]
-    timeout_error: [Error, SQSMessage]
-    processing_error: [Error, SQSMessage]
-    stopped: []
-}
-
-export type PendingMessage = {
-    sqsMessage: SQSMessage
-    processing: boolean
-    arrivedAt: number
-    processingStartedAt: number | null
-}
-
-export type PendingMessages = PendingMessage[]
 
 export class Consumer extends EventEmitter {
     private readonly queueUrl: string
@@ -243,6 +179,10 @@ export class Consumer extends EventEmitter {
 
         this.processMessage(message).then(() => {
             setImmediate(this.processNextPendingMessage)
+
+            if (this.pollingStopped && isPollingReadyForNextReceive(this.batchSize, this.pendingMessages.length)) {
+                setImmediate(this.pollSqs)
+            }
         })
 
         setImmediate(this.processNextPendingMessage)
@@ -268,10 +208,6 @@ export class Consumer extends EventEmitter {
                 messagesProcessing: this.pendingMessages.filter((m) => m.processing === true).length,
                 messagesWaiting: this.pendingMessages.filter((m) => m.processing === false).length,
             })
-
-            if (this.pollingStopped && isPollingReadyForNextReceive(this.batchSize, this.pendingMessages.length)) {
-                setImmediate(this.pollSqs)
-            }
         } catch (err) {
             this.emitError(err, sqsMsg)
 
