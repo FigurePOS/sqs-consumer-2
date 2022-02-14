@@ -147,10 +147,7 @@ export class Consumer extends EventEmitter {
     }
 
     private addToPendingMessages(response: ReceiveMessageResponse): Promise<void> {
-        if (!response || !response.Messages) {
-            return
-        }
-        if (response.Messages.length === 0) {
+        if (!response || !response.Messages || response.Messages.length === 0) {
             if (this.pendingMessages.length === 0) {
                 this.emit("empty")
             }

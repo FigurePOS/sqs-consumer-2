@@ -33,10 +33,12 @@ export const run = () => {
     const dict = new Map<string, number>()
 
     consumer.on("message_processed", (msg: AWS.SQS.Message, data: any) => {
+        console.log("message processed", msg.Body)
         result.push({ ...JSON.parse(msg.Body), ...data })
     })
 
     consumer.on("empty", () => {
+        console.log("received empty")
         result.forEach((d) => {
             const group = d.group
             const id = parseInt(d.id)
@@ -48,7 +50,10 @@ export const run = () => {
             dict[group] = id
         })
 
+        console.log("success")
         console.log(dict)
+
+        consumer.stop()
     })
 
     consumer.start()
