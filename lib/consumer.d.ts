@@ -15,7 +15,7 @@ export declare class Consumer extends EventEmitter {
     private readonly terminateVisibilityTimeout;
     private readonly heartbeatInterval;
     private readonly sqs;
-    private readonly pendingMessages;
+    private pendingMessages;
     private stopped;
     private pollingStopped;
     private heartbeatTimeout;

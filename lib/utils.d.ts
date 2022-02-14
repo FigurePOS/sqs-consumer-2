@@ -2,6 +2,7 @@ import { PendingMessage, PendingMessages, TimeoutResponse } from "./types";
 import { SQSError } from "./errors";
 import { AWSError } from "aws-sdk";
 export declare const getNextPendingMessage: (batch: PendingMessages) => PendingMessage | null;
+export declare const filterOutByGroupId: (pendingMessages: PendingMessages, groupId: String | undefined) => PendingMessages;
 export declare const groupMessageBatchByArrivedTime: (batch: PendingMessages) => PendingMessages[];
 export declare const isPollingReadyForNextReceive: (batchSize: number, pendingSize: number) => boolean;
 export declare const createTimeout: (duration: number) => TimeoutResponse;
