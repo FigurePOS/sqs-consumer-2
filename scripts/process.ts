@@ -7,8 +7,8 @@ const random = (min, max) => {
 
 export const run = () => {
     const queueUrl = "https://sqs.us-east-1.amazonaws.com/880892332156/_testing_sqs_consumer.fifo"
-    const processingTimeFrom = 0.5
-    const processingTimeTo = 4
+    const processingTimeFrom = 0.2
+    const processingTimeTo = 2
     const batchSize = 100
 
     const consumer = Consumer.create({
@@ -29,8 +29,31 @@ export const run = () => {
         }),
     })
 
+    const result = []
+    const dict = new Map<string, number>()
+
     consumer.on("message_processed", (msg: AWS.SQS.Message, data: any) => {
-        console.log(JSON.stringify({ ...JSON.parse(msg.Body), ...data }))
+        console.log("message processed", msg.Body)
+        result.push({ ...JSON.parse(msg.Body), ...data })
+    })
+
+    consumer.on("empty", () => {
+        console.log("received empty")
+        result.forEach((d) => {
+            const group = d.group
+            const id = parseInt(d.id)
+            const lastProcessed = dict[group] ?? -1
+            if (id <= lastProcessed) {
+                console.error("error", JSON.stringify(dict), JSON.stringify(d))
+                throw new Error()
+            }
+            dict[group] = id
+        })
+
+        console.log("success")
+        console.log(dict)
+
+        consumer.stop()
     })
 
     consumer.start()
