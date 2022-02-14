@@ -6,6 +6,7 @@ import { autoBind } from "./bind"
 import { SQSError, TimeoutError } from "./errors"
 import {
     createTimeout,
+    filterOutByGroupId,
     getNextPendingMessage,
     groupMessageBatchByArrivedTime,
     isConnectionError,
@@ -31,7 +32,7 @@ export class Consumer extends EventEmitter {
     private readonly terminateVisibilityTimeout: boolean
     private readonly heartbeatInterval: number
     private readonly sqs: SQS
-    private readonly pendingMessages: PendingMessages
+    private pendingMessages: PendingMessages
 
     private stopped: boolean
     private pollingStopped: boolean
@@ -258,6 +259,10 @@ export class Consumer extends EventEmitter {
             } else {
                 err.message = `Unexpected message handler failure: ${err.message}`
             }
+
+            // processing has failed, remove all following messages with the same groupId
+            this.pendingMessages = filterOutByGroupId(this.pendingMessages, message.Attributes?.MessageGroupId)
+
             throw err
         } finally {
             if (timeout && timeout.timeout) {

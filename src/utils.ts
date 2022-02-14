@@ -12,6 +12,10 @@ export const getNextPendingMessage = (batch: PendingMessages): PendingMessage | 
         .find((b) => !b.processing)
 }
 
+export const filterOutByGroupId = (pendingMessages: PendingMessages, groupId: String | undefined): PendingMessages => {
+    return pendingMessages.filter((e) => e.sqsMessage.Attributes?.MessageGroupId !== groupId)
+}
+
 export const groupMessageBatchByArrivedTime = (batch: PendingMessages): PendingMessages[] => {
     return [...new Set(batch.map((w) => w.arrivedAt))].map((arrived) => batch.filter((w) => w.arrivedAt === arrived))
 }

@@ -1,5 +1,10 @@
 import { assert, expect } from "chai"
-import { getNextPendingMessage, groupMessageBatchByArrivedTime, isPollingReadyForNextReceive } from "../src/utils"
+import {
+    filterOutByGroupId,
+    getNextPendingMessage,
+    groupMessageBatchByArrivedTime,
+    isPollingReadyForNextReceive,
+} from "../src/utils"
 import { PendingMessage } from "../src/types"
 
 describe("getNextPendingMessage", () => {
@@ -81,6 +86,54 @@ describe("isPollingReadyForNextReceive", () => {
     })
     it("returns false if there is no space for next 3 messages", () => {
         expect(isPollingReadyForNextReceive(3, 1)).to.be.false
+    })
+})
+
+describe("filterOutByGroupId", () => {
+    it("filters all messages with the same groupId", () => {
+        const batch = [
+            createMessage("1", "1", true, 1),
+            createMessage("2", "2", false, 2),
+            createMessage("3", "3", true, 3),
+            createMessage("4", "1", false, 4),
+            createMessage("5", "1", false, 5),
+            createMessage("6", "4", false, 6),
+            createMessage("7", "1", false, 7),
+        ]
+        const result = [
+            createMessage("2", "2", false, 2),
+            createMessage("3", "3", true, 3),
+            createMessage("6", "4", false, 6),
+        ]
+
+        expect(filterOutByGroupId(batch, "1")).to.deep.equal(result)
+    })
+
+    it("filters no messages if the same groupId not present", () => {
+        const batch = [
+            createMessage("1", "1", true, 1),
+            createMessage("2", "2", false, 2),
+            createMessage("3", "3", true, 3),
+        ]
+        const result = [
+            createMessage("1", "1", true, 1),
+            createMessage("2", "2", false, 2),
+            createMessage("3", "3", true, 3),
+        ]
+
+        expect(filterOutByGroupId(batch, "100")).to.deep.equal(result)
+    })
+
+    it("filters all messages if all pending messages has the target groupId", () => {
+        const batch = [createMessage("1", "1", true, 1), createMessage("2", "1", true, 2)]
+
+        expect(filterOutByGroupId(batch, "1")).to.be.empty
+    })
+
+    it("produces empty array pending message is empty", () => {
+        const batch = []
+
+        expect(filterOutByGroupId(batch, "1")).to.be.empty
     })
 })
 
