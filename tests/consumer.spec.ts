@@ -466,6 +466,16 @@ describe("Consumer", () => {
             assert.equal(message, messageWithAttr)
         })
 
+        it("fires an emptyQueue event when all messages have been consumed", async () => {
+            sqs.receiveMessage = stubResolve({
+                Messages: [],
+            })
+
+            consumer.start()
+            await pEvent(consumer, "empty")
+            consumer.stop()
+        })
+
         it("terminate message visibility timeout on processing error", async () => {
             handleMessage.rejects(new Error("Processing error"))
 
