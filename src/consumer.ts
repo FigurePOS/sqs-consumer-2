@@ -151,6 +151,9 @@ export class Consumer extends EventEmitter {
             return
         }
         if (response.Messages.length === 0) {
+            if (this.pendingMessages.length === 0) {
+                this.emit("empty")
+            }
             return
         }
 
@@ -170,7 +173,6 @@ export class Consumer extends EventEmitter {
     private processNextPendingMessage(): void {
         const message = getNextPendingMessage(this.pendingMessages)
         if (!message) {
-            this.emit("empty")
             return
         }
 
@@ -195,16 +197,18 @@ export class Consumer extends EventEmitter {
 
         try {
             await this.executeHandler(sqsMsg)
+
+            const processedTime = Date.now()
+
             await this.deleteMessage(sqsMsg)
 
-            const now = Date.now()
             this.emit("message_processed", sqsMsg, {
                 arrivedAt: message.arrivedAt,
                 processingStartedAt: message.processingStartedAt,
-                processedAt: now,
+                processedAt: processedTime,
                 waitingTime: message.processingStartedAt - message.arrivedAt,
-                processingTime: now - message.processingStartedAt,
-                totalTime: now - message.arrivedAt,
+                processingTime: processedTime - message.processingStartedAt,
+                totalTime: processedTime - message.arrivedAt,
                 messagesProcessing: this.pendingMessages.filter((m) => m.processing === true).length,
                 messagesWaiting: this.pendingMessages.filter((m) => m.processing === false).length,
             })

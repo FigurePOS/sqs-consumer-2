@@ -22,7 +22,7 @@ const range = (from, to) => {
 const run = async () => {
     const queueUrl = "https://sqs.us-east-1.amazonaws.com/880892332156/_testing_sqs_consumer.fifo"
     const numberOfMessages = 1000
-    const numberOfGroups = 1000
+    const numberOfGroups = 20
 
     const sqs = new AWS.SQS({
         region: "us-east-1",

@@ -3,14 +3,12 @@ import { SQSError, TimeoutError } from "./errors"
 import { AWSError } from "aws-sdk"
 
 export const getNextPendingMessage = (batch: PendingMessages): PendingMessage | null => {
+    const uniqGroupIds = batch
+        .filter((e) => e.processing && e.sqsMessage.Attributes?.MessageGroupId != null)
+        .map((e) => e.sqsMessage.Attributes?.MessageGroupId)
+
     return batch
-        .filter(
-            (msg) =>
-                !batch
-                    .filter((e) => e.processing && e.sqsMessage.Attributes?.MessageGroupId != null)
-                    .map((e) => e.sqsMessage.Attributes?.MessageGroupId)
-                    .includes(msg.sqsMessage.Attributes?.MessageGroupId),
-        )
+        .filter((msg) => !uniqGroupIds.includes(msg.sqsMessage.Attributes?.MessageGroupId))
         .find((b) => !b.processing)
 }
 
