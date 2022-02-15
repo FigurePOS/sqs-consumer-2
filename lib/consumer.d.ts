@@ -36,6 +36,7 @@ export declare class Consumer extends EventEmitter {
     private deleteMessage;
     private executeHandler;
     private changeVisibilityTimeout;
+    private emitPendingStatus;
     private emitError;
     private changeVisibilityTimeoutBatch;
     private startHeartbeat;

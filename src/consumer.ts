@@ -165,6 +165,8 @@ export class Consumer extends EventEmitter {
 
         this.pendingMessages.push(...batch)
 
+        this.emitPendingStatus()
+
         this.processNextPendingMessage()
     }
 
@@ -207,8 +209,6 @@ export class Consumer extends EventEmitter {
                 waitingTime: message.processingStartedAt - message.arrivedAt,
                 processingTime: processedTime - message.processingStartedAt,
                 totalTime: processedTime - message.arrivedAt,
-                messagesProcessing: this.pendingMessages.filter((m) => m.processing === true).length,
-                messagesWaiting: this.pendingMessages.filter((m) => m.processing === false).length,
             })
         } catch (err) {
             this.emitError(err, sqsMsg)
@@ -238,6 +238,8 @@ export class Consumer extends EventEmitter {
             const messageIndex = this.pendingMessages.findIndex((m) => m.sqsMessage.MessageId === message.MessageId)
             this.pendingMessages.splice(messageIndex, 1)
 
+            this.emitPendingStatus()
+
             await this.sqs.deleteMessage(deleteParams).promise()
         } catch (err) {
             throw toSQSError(err, `SQS delete message failed: ${err.message}`)
@@ -262,6 +264,7 @@ export class Consumer extends EventEmitter {
 
             // processing has failed, remove all following messages with the same groupId
             this.pendingMessages = filterOutByGroupId(this.pendingMessages, message.Attributes?.MessageGroupId)
+            this.emitPendingStatus()
 
             throw err
         } finally {
@@ -283,6 +286,13 @@ export class Consumer extends EventEmitter {
         } catch (err) {
             this.emit("error", err, message)
         }
+    }
+
+    private emitPendingStatus() {
+        this.emit("pending_status", {
+            messagesProcessing: this.pendingMessages.filter((m) => m.processing === true).length,
+            messagesWaiting: this.pendingMessages.filter((m) => m.processing === false).length,
+        })
     }
 
     private emitError(err: Error, message: SQSMessage): void {

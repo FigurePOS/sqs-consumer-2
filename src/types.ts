@@ -34,6 +34,12 @@ export interface Events {
     timeout_error: [Error, SQSMessage]
     processing_error: [Error, SQSMessage]
     stopped: []
+    pending_status: [PendingStatus]
+}
+
+export type PendingStatus = {
+    messagesProcessing: number
+    messagesWaiting: number
 }
 
 export type PendingMessage = {
