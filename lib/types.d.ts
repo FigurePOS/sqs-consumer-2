@@ -31,6 +31,7 @@ export interface Events {
     processing_error: [Error, SQSMessage];
     stopped: [];
     pending_status: [PendingStatus];
+    batch_received: [];
 }
 export declare type PendingStatus = {
     messagesProcessing: number;

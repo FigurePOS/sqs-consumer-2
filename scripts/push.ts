@@ -21,8 +21,9 @@ const range = (from, to) => {
 
 const run = async () => {
     const queueUrl = "https://sqs.us-east-1.amazonaws.com/880892332156/_testing_sqs_consumer.fifo"
-    const numberOfMessages = 1000
-    const numberOfGroups = 20
+    const offset = 10000
+    const numberOfMessages = 2000
+    const numberOfGroups = 500
 
     const sqs = new AWS.SQS({
         region: "us-east-1",
@@ -31,7 +32,7 @@ const run = async () => {
         //     secretAccessKey: "foobar",
         // },
     })
-    const batch = range(0, numberOfMessages)
+    const batch = range(offset, offset + numberOfMessages)
     const batches = splitEvery(10, batch)
 
     console.log("Starting pushing to queue...")

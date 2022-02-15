@@ -106,7 +106,7 @@ describe("filterOutByGroupId", () => {
             createMessage("6", "4", false, 6),
         ]
 
-        expect(filterOutByGroupId(batch, "1")).to.deep.equal(result)
+        expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "1" }, MessageId: "1" })).to.deep.equal(result)
     })
 
     it("filters no messages if the same groupId not present", () => {
@@ -121,19 +121,52 @@ describe("filterOutByGroupId", () => {
             createMessage("3", "3", true, 3),
         ]
 
-        expect(filterOutByGroupId(batch, "100")).to.deep.equal(result)
+        expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "100" }, MessageId: "100" })).to.deep.equal(
+            result,
+        )
+    })
+
+    it("doesnt remove anything if messages don't have group id at all (no fifo)", () => {
+        const batch = [
+            createMessage("1", null, true, 1),
+            createMessage("2", null, false, 2),
+            createMessage("3", null, true, 3),
+        ]
+        const result = [
+            createMessage("1", null, true, 1),
+            createMessage("2", null, false, 2),
+            createMessage("3", null, true, 3),
+        ]
+
+        expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "1" }, MessageId: "31" })).to.deep.equal(
+            result,
+        )
+    })
+
+    it("removes all messgaes with the same message id (just to be sure)", () => {
+        const batch = [
+            createMessage("1", null, true, 1),
+            createMessage("2", null, false, 2),
+            createMessage("3", null, true, 3),
+            createMessage("2", null, true, 1),
+            createMessage("2", null, false, 2),
+            createMessage("2", null, true, 3),
+        ]
+        const result = [createMessage("1", null, true, 1), createMessage("3", null, true, 3)]
+
+        expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "2" }, MessageId: "2" })).to.deep.equal(result)
     })
 
     it("filters all messages if all pending messages has the target groupId", () => {
         const batch = [createMessage("1", "1", true, 1), createMessage("2", "1", true, 2)]
 
-        expect(filterOutByGroupId(batch, "1")).to.be.empty
+        expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "1" }, MessageId: "3" })).to.be.empty
     })
 
     it("produces empty array pending message is empty", () => {
         const batch = []
 
-        expect(filterOutByGroupId(batch, "1")).to.be.empty
+        expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "1" }, MessageId: "32" })).to.be.empty
     })
 })
 

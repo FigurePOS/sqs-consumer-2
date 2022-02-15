@@ -155,6 +155,8 @@ export class Consumer extends EventEmitter {
             return
         }
 
+        this.emit("batch_received")
+
         const current = Date.now()
         const batch: PendingMessage[] = response.Messages.map((message) => ({
             sqsMessage: message,
@@ -200,8 +202,6 @@ export class Consumer extends EventEmitter {
 
             const processedTime = Date.now()
 
-            await this.deleteMessage(sqsMsg)
-
             this.emit("message_processed", sqsMsg, {
                 arrivedAt: message.arrivedAt,
                 processingStartedAt: message.processingStartedAt,
@@ -210,6 +210,8 @@ export class Consumer extends EventEmitter {
                 processingTime: processedTime - message.processingStartedAt,
                 totalTime: processedTime - message.arrivedAt,
             })
+
+            await this.deleteMessage(sqsMsg)
         } catch (err) {
             this.emitError(err, sqsMsg)
 
@@ -234,13 +236,12 @@ export class Consumer extends EventEmitter {
         }
 
         try {
+            await this.sqs.deleteMessage(deleteParams).promise()
+
             // delete from pending messages
-            const messageIndex = this.pendingMessages.findIndex((m) => m.sqsMessage.MessageId === message.MessageId)
-            this.pendingMessages.splice(messageIndex, 1)
+            this.pendingMessages = this.pendingMessages.filter((m) => m.sqsMessage.MessageId !== message.MessageId)
 
             this.emitPendingStatus()
-
-            await this.sqs.deleteMessage(deleteParams).promise()
         } catch (err) {
             throw toSQSError(err, `SQS delete message failed: ${err.message}`)
         }
@@ -263,7 +264,8 @@ export class Consumer extends EventEmitter {
             }
 
             // processing has failed, remove all following messages with the same groupId
-            this.pendingMessages = filterOutByGroupId(this.pendingMessages, message.Attributes?.MessageGroupId)
+            this.pendingMessages = filterOutByGroupId(this.pendingMessages, message)
+
             this.emitPendingStatus()
 
             throw err

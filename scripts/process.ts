@@ -10,13 +10,18 @@ export const run = () => {
     const processingTimeFrom = 0.2
     const processingTimeTo = 2
     const batchSize = 100
+    const failurePercentage = 0
 
     const consumer = Consumer.create({
         queueUrl: queueUrl,
         handleMessage: (msg) =>
-            new Promise((res) => {
+            new Promise((res, rej) => {
                 setTimeout(() => {
-                    res()
+                    if (Math.random() * 100 < failurePercentage) {
+                        rej({ message: "error" })
+                    } else {
+                        res()
+                    }
                 }, random(processingTimeFrom, processingTimeTo) * 1000)
             }),
         batchSize: batchSize,
@@ -37,8 +42,27 @@ export const run = () => {
         result.push({ ...JSON.parse(msg.Body), ...data })
     })
 
+    consumer.on("processing_error", (err: any, msg: AWS.SQS.Message) => {
+        console.error("processing error", msg.Body, err)
+    })
+
+    consumer.on("error", (err: any) => {
+        console.error("error", err)
+    })
+
+    consumer.on("batch_received", () => {
+        console.info("batch received")
+    })
+
+    consumer.on("pending_status", (status) => {
+        console.info("pending status", status)
+    })
+
     consumer.on("empty", () => {
         console.log("received empty")
+
+        consumer.stop()
+
         result.forEach((d) => {
             const group = d.group
             const id = parseInt(d.id)
@@ -52,8 +76,6 @@ export const run = () => {
 
         console.log("success")
         console.log(dict)
-
-        consumer.stop()
     })
 
     consumer.start()

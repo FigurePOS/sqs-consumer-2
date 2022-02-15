@@ -1,6 +1,6 @@
 import { PendingMessage, PendingMessages, TimeoutResponse } from "./types"
 import { SQSError, TimeoutError } from "./errors"
-import { AWSError } from "aws-sdk"
+import { AWSError, SQS } from "aws-sdk"
 
 export const getNextPendingMessage = (batch: PendingMessages): PendingMessage | null => {
     const uniqGroupIds = batch
@@ -12,8 +12,13 @@ export const getNextPendingMessage = (batch: PendingMessages): PendingMessage | 
         .find((b) => !b.processing)
 }
 
-export const filterOutByGroupId = (pendingMessages: PendingMessages, groupId: String | undefined): PendingMessages => {
-    return pendingMessages.filter((e) => e.sqsMessage.Attributes?.MessageGroupId !== groupId)
+export const filterOutByGroupId = (pendingMessages: PendingMessages, msg: SQS.Message): PendingMessages => {
+    return pendingMessages.filter(
+        (m) =>
+            m.sqsMessage.MessageId !== msg.MessageId &&
+            (m.sqsMessage.Attributes?.MessageGroupId == null ||
+                m.sqsMessage.Attributes?.MessageGroupId != msg.Attributes?.MessageGroupId),
+    )
 }
 
 export const groupMessageBatchByArrivedTime = (batch: PendingMessages): PendingMessages[] => {
