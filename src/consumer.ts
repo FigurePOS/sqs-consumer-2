@@ -240,9 +240,12 @@ export class Consumer extends EventEmitter {
 
             // delete from pending messages
             this.pendingMessages = this.pendingMessages.filter((m) => m.sqsMessage.MessageId !== message.MessageId)
-
             this.emitPendingStatus()
         } catch (err) {
+            // delete from pending messages
+            this.pendingMessages = this.pendingMessages.filter((m) => m.sqsMessage.MessageId !== message.MessageId)
+            this.emitPendingStatus()
+
             throw toSQSError(err, `SQS delete message failed: ${err.message}`)
         }
     }
@@ -329,13 +332,15 @@ export class Consumer extends EventEmitter {
     private startHeartbeat(): void {
         this.heartbeatTimeout = setInterval(async () => {
             const now = Date.now()
-            const messages = groupMessageBatchByArrivedTime(this.pendingMessages)
-            for (const msg of messages) {
-                const elapsedSeconds = Math.ceil((now - msg[0].arrivedAt) / 1000)
-                await this.changeVisibilityTimeoutBatch(
-                    msg.map((a) => a.sqsMessage),
-                    elapsedSeconds + (this.visibilityTimeout || 0),
+            const batches = groupMessageBatchByArrivedTime(this.pendingMessages)
+            for (const batch of batches) {
+                const elapsedSeconds = Math.ceil((now - batch[0].arrivedAt) / 1000)
+                const timeout = elapsedSeconds + (this.visibilityTimeout || 0)
+                const visibilityResponse = await this.changeVisibilityTimeoutBatch(
+                    batch.map((a) => a.sqsMessage),
+                    timeout,
                 )
+                this.emit("visibility_timeout_changed", batch, visibilityResponse, elapsedSeconds, timeout)
             }
         }, this.heartbeatInterval * 1000)
     }

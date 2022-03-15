@@ -36,6 +36,7 @@ export interface Events {
     stopped: []
     pending_status: [PendingStatus]
     batch_received: []
+    visibility_timeout_changed: [PendingMessages, any, number, number]
 }
 
 export type PendingStatus = {

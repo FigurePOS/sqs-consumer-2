@@ -42,6 +42,13 @@ describe("getNextPendingMessage", () => {
 
         assert.equal(getNextPendingMessage(batch), result)
     })
+
+    it("return null if any message with groupId is processing", () => {
+        // const result = createMessage("2", null, false)
+        const batch = [createMessage("1", "group1", true), createMessage("1", "group1", false)]
+
+        assert.equal(getNextPendingMessage(batch), null)
+    })
 })
 
 describe("groupMessageBatchByArrivedTime", () => {
