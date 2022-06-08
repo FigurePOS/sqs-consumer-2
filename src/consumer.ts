@@ -289,7 +289,7 @@ export class Consumer extends EventEmitter {
                 })
                 .promise()
         } catch (err) {
-            this.emit("error", err, message)
+            this.emit("error", toSQSError(err, `Error changing visibility timeout: ${err.message}`), message)
         }
     }
 
@@ -323,9 +323,9 @@ export class Consumer extends EventEmitter {
             })),
         }
         try {
-            return this.sqs.changeMessageVisibilityBatch(params).promise()
+            return await this.sqs.changeMessageVisibilityBatch(params).promise()
         } catch (err) {
-            this.emit("error", err, messages)
+            this.emit("error", toSQSError(err, `Error changing visibility timeout batch: ${err.message}`), messages)
         }
     }
 
