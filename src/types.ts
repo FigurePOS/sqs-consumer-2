@@ -1,6 +1,4 @@
-import * as SQS from "aws-sdk/clients/sqs"
-
-export type SQSMessage = SQS.Types.Message
+import { Message, SQS } from "@aws-sdk/client-sqs"
 
 export interface TimeoutResponse {
     timeout: NodeJS.Timeout | null
@@ -23,16 +21,16 @@ export interface ConsumerOptions {
     region?: string
     handleMessageTimeout?: number
 
-    handleMessage(message: SQSMessage): Promise<void>
+    handleMessage(message: Message): Promise<void>
 }
 
 export interface Events {
     empty: []
-    message_received: [SQSMessage]
-    message_processed: [SQSMessage, any]
-    error: [Error, void | SQSMessage | SQSMessage[]]
-    timeout_error: [Error, SQSMessage]
-    processing_error: [Error, SQSMessage]
+    message_received: [Message]
+    message_processed: [Message, any]
+    error: [Error, void | Message | Message[]]
+    timeout_error: [Error, Message]
+    processing_error: [Error, Message]
     stopped: []
     pending_status: [PendingStatus]
     batch_received: []
@@ -45,7 +43,7 @@ export type PendingStatus = {
 }
 
 export type PendingMessage = {
-    sqsMessage: SQSMessage
+    sqsMessage: Message
     processing: boolean
     arrivedAt: number
     processingStartedAt: number | null
