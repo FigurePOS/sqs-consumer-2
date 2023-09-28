@@ -1,4 +1,4 @@
-import { assert, expect } from "chai"
+import { assert } from "chai"
 import * as pEvent from "p-event"
 import * as sinon from "sinon"
 import { Consumer } from "../src/consumer"
@@ -333,6 +333,7 @@ describe("Consumer", () => {
             await clock.tickAsync(POLLING_TIMEOUT)
             consumer.stop()
 
+            // TODO fix this
             sandbox.assert.calledTwice(sqs.send.withArgs(sinon.match.instanceOf(ReceiveMessageCommand)))
         })
 
@@ -369,15 +370,12 @@ describe("Consumer", () => {
             await pEvent(consumer, "message_processed")
             consumer.stop()
 
-            sandbox.assert.calledWith(sqs.send, sinon.match.instanceOf(DeleteMessageCommand))
-            // TODO test the command parameters
-            // sandbox.assert.calledWith(
-            //     sqs.send,
-            //     new DeleteMessageCommand({
-            //         QueueUrl: "some-queue-url",
-            //         ReceiptHandle: "receipt-handle",
-            //     }),
-            // )
+            sandbox.assert.calledWith(
+                sqs.send,
+                sinon.match
+                    .instanceOf(DeleteMessageCommand)
+                    .and(sinon.match.has("input", { QueueUrl: "some-queue-url", ReceiptHandle: "receipt-handle" })),
+            )
         })
 
         it("doesn't delete the message when a processing error is reported", async () => {
@@ -446,19 +444,19 @@ describe("Consumer", () => {
             await clock.nextAsync()
             await clock.nextAsync()
 
-            sandbox.assert.calledWith(sqs.send, sinon.match.instanceOf(ReceiveMessageCommand))
-            // TODO
-            // sandbox.assert.calledWith(
-            //     sqs.send,
-            //     new ReceiveMessageCommand({
-            //         QueueUrl: "some-queue-url",
-            //         MessageAttributeNames: ["attribute-1", "attribute-2"],
-            //         AttributeNames: ["MessageGroupId"],
-            //         MaxNumberOfMessages: 3,
-            //         WaitTimeSeconds: 20,
-            //         VisibilityTimeout: 30,
-            //     }),
-            // )
+            sandbox.assert.calledWith(
+                sqs.send,
+                sinon.match.instanceOf(ReceiveMessageCommand).and(
+                    sinon.match.has("input", {
+                        QueueUrl: "some-queue-url",
+                        MessageAttributeNames: ["attribute-1", "attribute-2"],
+                        AttributeNames: ["MessageGroupId"],
+                        MaxNumberOfMessages: 3,
+                        WaitTimeSeconds: 20,
+                        VisibilityTimeout: 30,
+                    }),
+                ),
+            )
             sandbox.assert.callCount(handleMessage, 3)
 
             consumer.stop()
@@ -490,16 +488,19 @@ describe("Consumer", () => {
             const message = await pEvent(consumer, "message_received")
             consumer.stop()
 
-            sandbox.assert.calledWith(sqs.send, sinon.match.instanceOf(ReceiveMessageCommand))
-            // TODO
-            // sandbox.assert.calledWith(sqs.send, {
-            //     QueueUrl: "some-queue-url",
-            //     AttributeNames: ["ApproximateReceiveCount", "MessageGroupId"],
-            //     MessageAttributeNames: ["All"],
-            //     MaxNumberOfMessages: 10,
-            //     WaitTimeSeconds: 20,
-            //     VisibilityTimeout: 30,
-            // })
+            sandbox.assert.calledWith(
+                sqs.send,
+                sinon.match.instanceOf(ReceiveMessageCommand).and(
+                    sinon.match.has("input", {
+                        QueueUrl: "some-queue-url",
+                        AttributeNames: ["ApproximateReceiveCount", "MessageGroupId"],
+                        MessageAttributeNames: ["All"],
+                        MaxNumberOfMessages: 10,
+                        WaitTimeSeconds: 20,
+                        VisibilityTimeout: 30,
+                    }),
+                ),
+            )
 
             assert.equal(message, messageWithAttr)
         })
@@ -523,13 +524,16 @@ describe("Consumer", () => {
             await pEvent(consumer, "processing_error")
             consumer.stop()
 
-            sandbox.assert.calledWith(sqs.send, sinon.match.instanceOf(ChangeMessageVisibilityCommand))
-            // TODO
-            // sandbox.assert.calledWith(sqs.changeMessageVisibility, {
-            //     QueueUrl: "some-queue-url",
-            //     ReceiptHandle: "receipt-handle",
-            //     VisibilityTimeout: 0,
-            // })
+            sandbox.assert.calledWith(
+                sqs.send,
+                sinon.match.instanceOf(ChangeMessageVisibilityCommand).and(
+                    sinon.match.has("input", {
+                        QueueUrl: "some-queue-url",
+                        ReceiptHandle: "receipt-handle",
+                        VisibilityTimeout: 0,
+                    }),
+                ),
+            )
         })
 
         it("does not terminate visibility timeout when `terminateVisibilityTimeout` option is false", async () => {
@@ -555,13 +559,16 @@ describe("Consumer", () => {
             await pEvent(consumer, "error")
             consumer.stop()
 
-            sandbox.assert.calledWith(sqs.send, sinon.match.instanceOf(ChangeMessageVisibilityCommand))
-            // TODO
-            // sandbox.assert.calledWith(sqs.changeMessageVisibility, {
-            //     QueueUrl: "some-queue-url",
-            //     ReceiptHandle: "receipt-handle",
-            //     VisibilityTimeout: 0,
-            // })
+            sandbox.assert.calledWith(
+                sqs.send,
+                sinon.match.instanceOf(ChangeMessageVisibilityCommand).and(
+                    sinon.match.has("input", {
+                        QueueUrl: "some-queue-url",
+                        ReceiptHandle: "receipt-handle",
+                        VisibilityTimeout: 0,
+                    }),
+                ),
+            )
         })
 
         it("passes in the correct visibility timeout for long running handler functions", async () => {
@@ -587,22 +594,32 @@ describe("Consumer", () => {
             await clock.tickAsync(75000)
             consumer.stop()
 
-            sandbox.assert.calledWith(sqs.changeMessageVisibilityBatch, {
-                QueueUrl: "some-queue-url",
-                Entries: [
-                    { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 70 },
-                    { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 70 },
-                    { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 70 },
-                ],
-            })
-            sandbox.assert.calledWith(sqs.changeMessageVisibilityBatch, {
-                QueueUrl: "some-queue-url",
-                Entries: [
-                    { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 100 },
-                    { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 100 },
-                    { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 100 },
-                ],
-            })
+            sandbox.assert.calledWith(
+                sqs.send,
+                sinon.match.instanceOf(ChangeMessageVisibilityBatchCommand).and(
+                    sinon.match.has("input", {
+                        QueueUrl: "some-queue-url",
+                        Entries: [
+                            { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 70 },
+                            { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 70 },
+                            { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 70 },
+                        ],
+                    }),
+                ),
+            )
+            sandbox.assert.calledWith(
+                sqs.send,
+                sinon.match.instanceOf(ChangeMessageVisibilityBatchCommand).and(
+                    sinon.match.has("input", {
+                        QueueUrl: "some-queue-url",
+                        Entries: [
+                            { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 100 },
+                            { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 100 },
+                            { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 100 },
+                        ],
+                    }),
+                ),
+            )
             sandbox.assert.calledOnce(clearIntervalSpy)
         })
     })
