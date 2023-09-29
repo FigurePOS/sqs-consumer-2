@@ -11,16 +11,7 @@ import {
     toSQSError,
 } from "./utils"
 import { ConsumerOptions, Events, PendingMessage, PendingMessages } from "./types"
-import {
-    ChangeMessageVisibilityBatchCommand,
-    ChangeMessageVisibilityCommand,
-    DeleteMessageCommand,
-    Message,
-    ReceiveMessageCommand,
-    ReceiveMessageRequest,
-    ReceiveMessageResult,
-    SQSClient,
-} from "@aws-sdk/client-sqs"
+import { Message, ReceiveMessageRequest, ReceiveMessageResult, SQS } from "@aws-sdk/client-sqs"
 
 export class Consumer extends EventEmitter {
     private readonly queueUrl: string
@@ -35,7 +26,7 @@ export class Consumer extends EventEmitter {
     private readonly pollingWaitTimeMs: number
     private readonly terminateVisibilityTimeout: boolean
     private readonly heartbeatInterval: number
-    private readonly sqs: SQSClient
+    private readonly sqs: SQS
     private pendingMessages: PendingMessages
 
     private stopped: boolean
@@ -62,7 +53,7 @@ export class Consumer extends EventEmitter {
 
         this.sqs =
             options.sqs ||
-            new SQSClient({
+            new SQS({
                 region: options.region || process.env.AWS_REGION || "us-east-1",
             })
 
@@ -227,7 +218,7 @@ export class Consumer extends EventEmitter {
 
     private async receiveMessage(params: ReceiveMessageRequest): Promise<ReceiveMessageResult> {
         try {
-            return await this.sqs.send(new ReceiveMessageCommand(params))
+            return await this.sqs.receiveMessage(params)
         } catch (err) {
             throw toSQSError(err, `SQS receive message failed: ${err.message}`)
         }
@@ -236,11 +227,11 @@ export class Consumer extends EventEmitter {
     private async deleteMessage(message: Message) {
         const deleteParams = {
             QueueUrl: this.queueUrl,
-            ReceiptHandle: message.ReceiptHandle as string,
+            ReceiptHandle: message.ReceiptHandle || "",
         }
 
         try {
-            await this.sqs.send(new DeleteMessageCommand(deleteParams))
+            await this.sqs.deleteMessage(deleteParams)
 
             // delete from pending messages
             this.pendingMessages = this.pendingMessages.filter((m) => m.sqsMessage.MessageId !== message.MessageId)
@@ -285,13 +276,11 @@ export class Consumer extends EventEmitter {
 
     private async changeVisibilityTimeout(message: Message, timeout: number) {
         try {
-            return await this.sqs.send(
-                new ChangeMessageVisibilityCommand({
-                    QueueUrl: this.queueUrl,
-                    ReceiptHandle: message.ReceiptHandle as string,
-                    VisibilityTimeout: timeout,
-                }),
-            )
+            return await this.sqs.changeMessageVisibility({
+                QueueUrl: this.queueUrl,
+                ReceiptHandle: message.ReceiptHandle || "",
+                VisibilityTimeout: timeout,
+            })
         } catch (err) {
             this.emit("error", toSQSError(err, `Error changing visibility timeout: ${err.message}`), message)
         }
@@ -318,13 +307,13 @@ export class Consumer extends EventEmitter {
         const params = {
             QueueUrl: this.queueUrl,
             Entries: messages.map((message) => ({
-                Id: message.MessageId as string,
-                ReceiptHandle: message.ReceiptHandle as string,
+                Id: message.MessageId || "",
+                ReceiptHandle: message.ReceiptHandle || "",
                 VisibilityTimeout: timeout,
             })),
         }
         try {
-            return await this.sqs.send(new ChangeMessageVisibilityBatchCommand(params))
+            return await this.sqs.changeMessageVisibilityBatch(params)
         } catch (err) {
             this.emit("error", toSQSError(err, `Error changing visibility timeout batch: ${err.message}`), messages)
         }

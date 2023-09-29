@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { Message, SQSClient } from "@aws-sdk/client-sqs";
+import { Message, SQS } from "@aws-sdk/client-sqs";
 export interface TimeoutResponse {
     timeout: NodeJS.Timeout | null;
     pending: Promise<void>;
@@ -16,7 +16,7 @@ export interface ConsumerOptions {
     pollingWaitTimeMs?: number;
     terminateVisibilityTimeout?: boolean;
     heartbeatInterval?: number;
-    sqs?: SQSClient;
+    sqs?: SQS;
     region?: string;
     handleMessageTimeout?: number;
     handleMessage(message: Message): Promise<void>;
