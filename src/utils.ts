@@ -21,6 +21,14 @@ export const filterOutByGroupId = (pendingMessages: PendingMessages, msg: Messag
     )
 }
 
+export const getMessagesByGroupId = (pendingMessages: PendingMessages, msg: Message): PendingMessages => {
+    return pendingMessages.filter(
+        (m) =>
+            m.sqsMessage.Attributes?.MessageGroupId != null &&
+            m.sqsMessage.Attributes?.MessageGroupId === msg.Attributes?.MessageGroupId,
+    )
+}
+
 export const groupMessageBatchByArrivedTime = (batch: PendingMessages): PendingMessages[] => {
     return [...new Set(batch.map((w) => w.arrivedAt))].map((arrived) => batch.filter((w) => w.arrivedAt === arrived))
 }
