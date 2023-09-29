@@ -7,6 +7,7 @@ import { SQSError, TimeoutError } from "./errors"
 import {
     createTimeout,
     filterOutByGroupId,
+    getMessagesByGroupId,
     getNextPendingMessage,
     groupMessageBatchByArrivedTime,
     isConnectionError,
@@ -266,8 +267,13 @@ export class Consumer extends EventEmitter {
                 err.message = `Unexpected message handler failure: ${err.message}`
             }
 
+            const messages = getMessagesByGroupId(this.pendingMessages, message)
+
             // processing has failed, remove all following messages with the same groupId
             this.pendingMessages = filterOutByGroupId(this.pendingMessages, message)
+
+            // set the visibility timeout to default value to all messages with the same groupId
+            await this.changeVisibilityTimeoutOfBatch(messages, this.visibilityTimeout, 0)
 
             this.emitPendingStatus()
 
@@ -310,6 +316,14 @@ export class Consumer extends EventEmitter {
         }
     }
 
+    private async changeVisibilityTimeoutOfBatch(batch: PendingMessages, timeout: number, elapsedSeconds: number) {
+        const visibilityResponse = await this.changeVisibilityTimeoutBatch(
+            batch.map((a) => a.sqsMessage),
+            timeout,
+        )
+        this.emit("visibility_timeout_changed", batch, visibilityResponse, elapsedSeconds, timeout)
+    }
+
     private async changeVisibilityTimeoutBatch(
         messages: SQSMessage[],
         timeout: number,
@@ -336,11 +350,7 @@ export class Consumer extends EventEmitter {
             for (const batch of batches) {
                 const elapsedSeconds = Math.ceil((now - batch[0].arrivedAt) / 1000)
                 const timeout = elapsedSeconds + (this.visibilityTimeout || 0)
-                const visibilityResponse = await this.changeVisibilityTimeoutBatch(
-                    batch.map((a) => a.sqsMessage),
-                    timeout,
-                )
-                this.emit("visibility_timeout_changed", batch, visibilityResponse, elapsedSeconds, timeout)
+                await this.changeVisibilityTimeoutOfBatch(batch, timeout, elapsedSeconds)
             }
         }, this.heartbeatInterval * 1000)
     }
