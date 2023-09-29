@@ -3,6 +3,7 @@ import { SQSError } from "./errors";
 import { Message } from "@aws-sdk/client-sqs";
 export declare const getNextPendingMessage: (batch: PendingMessages) => PendingMessage | null;
 export declare const filterOutByGroupId: (pendingMessages: PendingMessages, msg: Message) => PendingMessages;
+export declare const getMessagesByGroupId: (pendingMessages: PendingMessages, msg: Message) => PendingMessages;
 export declare const groupMessageBatchByArrivedTime: (batch: PendingMessages) => PendingMessages[];
 export declare const isPollingReadyForNextReceive: (batchSize: number, pendingSize: number) => boolean;
 export declare const createTimeout: (duration: number) => TimeoutResponse;
