@@ -1,6 +1,6 @@
 import { PendingMessage, PendingMessages, TimeoutResponse } from "./types"
 import { SQSError, TimeoutError } from "./errors"
-import { Message } from "@aws-sdk/client-sqs"
+import { AWSError, SQS } from "aws-sdk"
 
 export const getNextPendingMessage = (batch: PendingMessages): PendingMessage | null => {
     const uniqGroupIds = batch
@@ -12,12 +12,20 @@ export const getNextPendingMessage = (batch: PendingMessages): PendingMessage | 
         .find((b) => !b.processing)
 }
 
-export const filterOutByGroupId = (pendingMessages: PendingMessages, msg: Message): PendingMessages => {
+export const filterOutByGroupId = (pendingMessages: PendingMessages, msg: SQS.Message): PendingMessages => {
     return pendingMessages.filter(
         (m) =>
             m.sqsMessage.MessageId !== msg.MessageId &&
             (m.sqsMessage.Attributes?.MessageGroupId == null ||
                 m.sqsMessage.Attributes?.MessageGroupId != msg.Attributes?.MessageGroupId),
+    )
+}
+
+export const getMessagesByGroupId = (pendingMessages: PendingMessages, msg: SQS.Message): PendingMessages => {
+    return pendingMessages.filter(
+        (m) =>
+            m.sqsMessage.Attributes?.MessageGroupId != null &&
+            m.sqsMessage.Attributes?.MessageGroupId === msg.Attributes?.MessageGroupId,
     )
 }
 
@@ -46,7 +54,7 @@ export const isConnectionError = (err: Error): boolean => {
     return false
 }
 
-export const toSQSError = (err, message: string): SQSError => {
+export const toSQSError = (err: AWSError, message: string): SQSError => {
     const sqsError = new SQSError(message)
     sqsError.code = err.code
     sqsError.statusCode = err.statusCode

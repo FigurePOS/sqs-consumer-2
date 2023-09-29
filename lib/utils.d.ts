@@ -1,10 +1,11 @@
 import { PendingMessage, PendingMessages, TimeoutResponse } from "./types";
 import { SQSError } from "./errors";
-import { Message } from "@aws-sdk/client-sqs";
+import { AWSError, SQS } from "aws-sdk";
 export declare const getNextPendingMessage: (batch: PendingMessages) => PendingMessage | null;
-export declare const filterOutByGroupId: (pendingMessages: PendingMessages, msg: Message) => PendingMessages;
+export declare const filterOutByGroupId: (pendingMessages: PendingMessages, msg: SQS.Message) => PendingMessages;
+export declare const getMessagesByGroupId: (pendingMessages: PendingMessages, msg: SQS.Message) => PendingMessages;
 export declare const groupMessageBatchByArrivedTime: (batch: PendingMessages) => PendingMessages[];
 export declare const isPollingReadyForNextReceive: (batchSize: number, pendingSize: number) => boolean;
 export declare const createTimeout: (duration: number) => TimeoutResponse;
 export declare const isConnectionError: (err: Error) => boolean;
-export declare const toSQSError: (err: any, message: string) => SQSError;
+export declare const toSQSError: (err: AWSError, message: string) => SQSError;
