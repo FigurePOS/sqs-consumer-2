@@ -349,7 +349,7 @@ export class Consumer extends EventEmitter {
             const batches = groupMessageBatchByArrivedTime(this.pendingMessages)
             for (const batch of batches) {
                 const elapsedSeconds = Math.ceil((now - batch[0].arrivedAt) / 1000)
-                const timeout = elapsedSeconds + (this.visibilityTimeout || 0)
+                const timeout = this.visibilityTimeout || 0
                 await this.changeVisibilityTimeoutOfBatch(batch, timeout, elapsedSeconds)
             }
         }, this.heartbeatInterval * 1000)
