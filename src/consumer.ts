@@ -1,3 +1,6 @@
+import { AWSError } from "aws-sdk"
+import * as SQS from "aws-sdk/clients/sqs"
+import { PromiseResult } from "aws-sdk/lib/request"
 import { EventEmitter } from "events"
 import { autoBind } from "./bind"
 import { SQSError, TimeoutError } from "./errors"
@@ -11,21 +14,14 @@ import {
     isPollingReadyForNextReceive,
     toSQSError,
 } from "./utils"
-import { ConsumerOptions, Events, PendingMessage, PendingMessages } from "./types"
-import {
-    ChangeMessageVisibilityBatchCommand,
-    ChangeMessageVisibilityCommand,
-    DeleteMessageCommand,
-    Message,
-    ReceiveMessageCommand,
-    ReceiveMessageRequest,
-    ReceiveMessageResult,
-    SQSClient,
-} from "@aws-sdk/client-sqs"
+import { ConsumerOptions, Events, PendingMessage, PendingMessages, SQSMessage } from "./types"
+
+type ReceiveMessageResponse = PromiseResult<SQS.Types.ReceiveMessageResult, AWSError>
+type ReceiveMessageRequest = SQS.Types.ReceiveMessageRequest
 
 export class Consumer extends EventEmitter {
     private readonly queueUrl: string
-    private readonly handleMessage: (message: Message) => Promise<void>
+    private readonly handleMessage: (message: SQSMessage) => Promise<void>
     private readonly handleMessageTimeout: number | null
     private readonly attributeNames: string[]
     private readonly messageAttributeNames: string[]
@@ -36,7 +32,7 @@ export class Consumer extends EventEmitter {
     private readonly pollingWaitTimeMs: number
     private readonly terminateVisibilityTimeout: boolean
     private readonly heartbeatInterval: number
-    private readonly sqs: SQSClient
+    private readonly sqs: SQS
     private pendingMessages: PendingMessages
 
     private stopped: boolean
@@ -63,7 +59,7 @@ export class Consumer extends EventEmitter {
 
         this.sqs =
             options.sqs ||
-            new SQSClient({
+            new SQS({
                 region: options.region || process.env.AWS_REGION || "us-east-1",
             })
 
@@ -152,7 +148,7 @@ export class Consumer extends EventEmitter {
             })
     }
 
-    private addToPendingMessages(response: ReceiveMessageResult) {
+    private addToPendingMessages(response: ReceiveMessageResponse): Promise<void> {
         if (!response || !response.Messages || response.Messages.length === 0) {
             if (this.pendingMessages.length === 0) {
                 this.emit("empty")
@@ -226,22 +222,22 @@ export class Consumer extends EventEmitter {
         }
     }
 
-    private async receiveMessage(params: ReceiveMessageRequest): Promise<ReceiveMessageResult> {
+    private async receiveMessage(params: ReceiveMessageRequest): Promise<ReceiveMessageResponse> {
         try {
-            return await this.sqs.send(new ReceiveMessageCommand(params))
+            return await this.sqs.receiveMessage(params).promise()
         } catch (err) {
             throw toSQSError(err, `SQS receive message failed: ${err.message}`)
         }
     }
 
-    private async deleteMessage(message: Message) {
+    private async deleteMessage(message: SQSMessage): Promise<void> {
         const deleteParams = {
             QueueUrl: this.queueUrl,
-            ReceiptHandle: message.ReceiptHandle as string,
+            ReceiptHandle: message.ReceiptHandle || "",
         }
 
         try {
-            await this.sqs.send(new DeleteMessageCommand(deleteParams))
+            await this.sqs.deleteMessage(deleteParams).promise()
 
             // delete from pending messages
             this.pendingMessages = this.pendingMessages.filter((m) => m.sqsMessage.MessageId !== message.MessageId)
@@ -255,7 +251,7 @@ export class Consumer extends EventEmitter {
         }
     }
 
-    private async executeHandler(message: Message) {
+    private async executeHandler(message: SQSMessage): Promise<void> {
         let timeout
         try {
             if (this.handleMessageTimeout) {
@@ -276,6 +272,7 @@ export class Consumer extends EventEmitter {
             // processing has failed, remove all following messages with the same groupId
             this.pendingMessages = filterOutByGroupId(this.pendingMessages, message)
 
+            // set the visibility timeout to default value to all messages with the same groupId
             await this.changeVisibilityTimeoutOfBatch(messages, this.visibilityTimeout, 0)
 
             this.emitPendingStatus()
@@ -288,15 +285,15 @@ export class Consumer extends EventEmitter {
         }
     }
 
-    private async changeVisibilityTimeout(message: Message, timeout: number) {
+    private async changeVisibilityTimeout(message: SQSMessage, timeout: number): Promise<PromiseResult<any, AWSError>> {
         try {
-            return await this.sqs.send(
-                new ChangeMessageVisibilityCommand({
+            return await this.sqs
+                .changeMessageVisibility({
                     QueueUrl: this.queueUrl,
-                    ReceiptHandle: message.ReceiptHandle as string,
+                    ReceiptHandle: message.ReceiptHandle || "",
                     VisibilityTimeout: timeout,
-                }),
-            )
+                })
+                .promise()
         } catch (err) {
             this.emit("error", toSQSError(err, `Error changing visibility timeout: ${err.message}`), message)
         }
@@ -309,7 +306,7 @@ export class Consumer extends EventEmitter {
         })
     }
 
-    private emitError(err: Error, message: Message): void {
+    private emitError(err: Error, message: SQSMessage): void {
         if (err.name === SQSError.name) {
             this.emit("error", err, message)
         } else if (err instanceof TimeoutError) {
@@ -327,17 +324,20 @@ export class Consumer extends EventEmitter {
         this.emit("visibility_timeout_changed", batch, visibilityResponse, elapsedSeconds, timeout)
     }
 
-    private async changeVisibilityTimeoutBatch(messages: Message[], timeout: number) {
+    private async changeVisibilityTimeoutBatch(
+        messages: SQSMessage[],
+        timeout: number,
+    ): Promise<PromiseResult<any, AWSError>> {
         const params = {
             QueueUrl: this.queueUrl,
             Entries: messages.map((message) => ({
-                Id: message.MessageId as string,
-                ReceiptHandle: message.ReceiptHandle as string,
+                Id: message.MessageId || "",
+                ReceiptHandle: message.ReceiptHandle || "",
                 VisibilityTimeout: timeout,
             })),
         }
         try {
-            return await this.sqs.send(new ChangeMessageVisibilityBatchCommand(params))
+            return await this.sqs.changeMessageVisibilityBatch(params).promise()
         } catch (err) {
             this.emit("error", toSQSError(err, `Error changing visibility timeout batch: ${err.message}`), messages)
         }

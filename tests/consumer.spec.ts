@@ -2,48 +2,18 @@ import { assert } from "chai"
 import * as pEvent from "p-event"
 import * as sinon from "sinon"
 import { Consumer } from "../src/consumer"
-import { Command } from "@smithy/smithy-client"
-import {
-    ReceiveMessageCommand,
-    DeleteMessageCommand,
-    DeleteMessageBatchCommand,
-    ChangeMessageVisibilityCommand,
-    ChangeMessageVisibilityBatchCommand,
-} from "@aws-sdk/client-sqs"
 
 const sandbox = sinon.createSandbox()
 
 const AUTHENTICATION_ERROR_TIMEOUT = 20
 const POLLING_TIMEOUT = 100
 
-function overrideResolveStub<T extends new (...args: any[]) => Command<any, any, any>, U>(C: T, value?: U): any {
-    const stub = createBaseStub()
-    stub.withArgs(sinon.match.instanceOf(C)).resolves(value)
-    return stub
+function stubResolve(value?: any): any {
+    return sandbox.stub().returns({ promise: sandbox.stub().resolves(value) })
 }
 
-function overrideRejectStub<T extends new (...args: any[]) => Command<any, any, any>, U>(C: T, value?: U): any {
-    const stub = createBaseStub()
-    stub.withArgs(sinon.match.instanceOf(C)).rejects(value)
-    return stub
-}
-
-function createBaseStub() {
-    const stub = sandbox.stub()
-    stub.withArgs(sinon.match.instanceOf(ReceiveMessageCommand)).resolves({
-        Messages: [
-            {
-                ReceiptHandle: "receipt-handle",
-                MessageId: "123",
-                Body: "body",
-            },
-        ],
-    })
-    stub.withArgs(sinon.match.instanceOf(DeleteMessageCommand)).resolves()
-    stub.withArgs(sinon.match.instanceOf(DeleteMessageBatchCommand)).resolves()
-    stub.withArgs(sinon.match.instanceOf(ChangeMessageVisibilityCommand)).resolves()
-    stub.withArgs(sinon.match.instanceOf(ChangeMessageVisibilityBatchCommand)).resolves()
-    return stub
+function stubReject(value?: any): any {
+    return sandbox.stub().returns({ promise: sandbox.stub().rejects(value) })
 }
 
 class MockSQSError extends Error {
@@ -80,7 +50,11 @@ describe("Consumer", () => {
         clock = sinon.useFakeTimers()
         handleMessage = sandbox.stub().resolves(null)
         sqs = sandbox.mock()
-        sqs.send = createBaseStub()
+        sqs.receiveMessage = stubResolve(response)
+        sqs.deleteMessage = stubResolve()
+        sqs.deleteMessageBatch = stubResolve()
+        sqs.changeMessageVisibility = stubResolve()
+        sqs.changeMessageVisibilityBatch = stubResolve()
 
         consumer = new Consumer({
             queueUrl: "some-queue-url",
@@ -148,7 +122,7 @@ describe("Consumer", () => {
         it("fires an error event when an error occurs receiving a message", async () => {
             const receiveErr = new Error("Receive error")
 
-            sqs.send = overrideRejectStub(ReceiveMessageCommand, receiveErr)
+            sqs.receiveMessage = stubReject(receiveErr)
 
             consumer.start()
 
@@ -168,7 +142,7 @@ describe("Consumer", () => {
             receiveErr.hostname = "hostname"
             receiveErr.region = "eu-west-1"
 
-            sqs.send = overrideRejectStub(ReceiveMessageCommand, receiveErr)
+            sqs.receiveMessage = stubReject(receiveErr)
 
             consumer.start()
             const err: any = await pEvent(consumer, "error")
@@ -229,7 +203,7 @@ describe("Consumer", () => {
             const deleteErr = new Error("Delete error")
 
             handleMessage.resolves(null)
-            sqs.send = overrideRejectStub(DeleteMessageCommand, deleteErr)
+            sqs.deleteMessage = stubReject(deleteErr)
 
             consumer.start()
             const err: any = await pEvent(consumer, "error")
@@ -257,7 +231,7 @@ describe("Consumer", () => {
             sqsError.name = "SQSError"
 
             handleMessage.resolves(sqsError)
-            sqs.send = overrideRejectStub(DeleteMessageCommand, sqsError)
+            sqs.deleteMessage = stubReject(sqsError)
 
             consumer.start()
             const [err, message] = await pEvent(consumer, "error", { multiArgs: true })
@@ -272,7 +246,7 @@ describe("Consumer", () => {
                 code: "CredentialsError",
                 message: "Missing credentials in config",
             }
-            sqs.send = overrideRejectStub(ReceiveMessageCommand, credentialsErr)
+            sqs.receiveMessage = stubReject(credentialsErr)
             const errorListener = sandbox.stub()
             consumer.on("error", errorListener)
 
@@ -281,7 +255,7 @@ describe("Consumer", () => {
             consumer.stop()
 
             sandbox.assert.calledTwice(errorListener)
-            sandbox.assert.calledTwice(sqs.send.withArgs(sinon.match.instanceOf(ReceiveMessageCommand)))
+            sandbox.assert.calledTwice(sqs.receiveMessage)
         })
 
         it("waits before repolling when a 403 error occurs", async () => {
@@ -289,7 +263,7 @@ describe("Consumer", () => {
                 statusCode: 403,
                 message: "The security token included in the request is invalid",
             }
-            sqs.send = overrideRejectStub(ReceiveMessageCommand, invalidSignatureErr)
+            sqs.receiveMessage = stubReject(invalidSignatureErr)
             const errorListener = sandbox.stub()
             consumer.on("error", errorListener)
 
@@ -298,7 +272,7 @@ describe("Consumer", () => {
             consumer.stop()
 
             sandbox.assert.calledTwice(errorListener)
-            sandbox.assert.calledTwice(sqs.send.withArgs(sinon.match.instanceOf(ReceiveMessageCommand)))
+            sandbox.assert.calledTwice(sqs.receiveMessage)
         })
 
         it("waits before repolling when a UnknownEndpoint error occurs", async () => {
@@ -307,7 +281,7 @@ describe("Consumer", () => {
                 message:
                     "Inaccessible host: `sqs.eu-west-1.amazonaws.com`. This service may not be available in the `eu-west-1` region.",
             }
-            sqs.send = overrideRejectStub(ReceiveMessageCommand, unknownEndpointErr)
+            sqs.receiveMessage = stubReject(unknownEndpointErr)
             const errorListener = sandbox.stub()
             consumer.on("error", errorListener)
 
@@ -316,7 +290,7 @@ describe("Consumer", () => {
             consumer.stop()
 
             sandbox.assert.calledTwice(errorListener)
-            sandbox.assert.calledTwice(sqs.send.withArgs(sinon.match.instanceOf(ReceiveMessageCommand)))
+            sandbox.assert.calledTwice(sqs.receiveMessage)
         })
 
         it("waits before repolling when a polling timeout is set", async () => {
@@ -333,8 +307,7 @@ describe("Consumer", () => {
             await clock.tickAsync(POLLING_TIMEOUT)
             consumer.stop()
 
-            // TODO fix this
-            sandbox.assert.calledTwice(sqs.send.withArgs(sinon.match.instanceOf(ReceiveMessageCommand)))
+            sandbox.assert.calledTwice(sqs.receiveMessage)
         })
 
         it("fires a message_received event when a message is received", async () => {
@@ -342,7 +315,7 @@ describe("Consumer", () => {
             const message = await pEvent(consumer, "message_received")
             consumer.stop()
 
-            assert.deepEqual(message, response.Messages[0])
+            assert.equal(message, response.Messages[0])
         })
 
         it("fires a message_processed event when a message is successfully deleted", async () => {
@@ -352,7 +325,7 @@ describe("Consumer", () => {
             const message = await pEvent(consumer, "message_received")
             consumer.stop()
 
-            assert.deepEqual(message, response.Messages[0])
+            assert.equal(message, response.Messages[0])
         })
 
         it("calls the handleMessage function when a message is received", async () => {
@@ -370,12 +343,10 @@ describe("Consumer", () => {
             await pEvent(consumer, "message_processed")
             consumer.stop()
 
-            sandbox.assert.calledWith(
-                sqs.send,
-                sinon.match
-                    .instanceOf(DeleteMessageCommand)
-                    .and(sinon.match.has("input", { QueueUrl: "some-queue-url", ReceiptHandle: "receipt-handle" })),
-            )
+            sandbox.assert.calledWith(sqs.deleteMessage, {
+                QueueUrl: "some-queue-url",
+                ReceiptHandle: "receipt-handle",
+            })
         })
 
         it("doesn't delete the message when a processing error is reported", async () => {
@@ -385,7 +356,7 @@ describe("Consumer", () => {
             await pEvent(consumer, "processing_error")
             consumer.stop()
 
-            sandbox.assert.notCalled(sqs.send.withArgs(sinon.match.instanceOf(DeleteMessageCommand)))
+            sandbox.assert.notCalled(sqs.deleteMessage)
         })
 
         it("consumes another message once one is processed", async () => {
@@ -398,7 +369,7 @@ describe("Consumer", () => {
         })
 
         it("doesn't consume more messages when called multiple times", () => {
-            sqs.send = overrideResolveStub(ReceiveMessageCommand, new Promise((res) => setTimeout(res, 100)))
+            sqs.receiveMessage = stubResolve(new Promise((res) => setTimeout(res, 100)))
             consumer.start()
             consumer.start()
             consumer.start()
@@ -406,11 +377,11 @@ describe("Consumer", () => {
             consumer.start()
             consumer.stop()
 
-            sandbox.assert.calledOnce(sqs.send)
+            sandbox.assert.calledOnce(sqs.receiveMessage)
         })
 
         it("consumes multiple messages when the batchSize is greater than 1", async () => {
-            sqs.send = overrideResolveStub(ReceiveMessageCommand, {
+            sqs.receiveMessage = stubResolve({
                 Messages: [
                     {
                         ReceiptHandle: "receipt-handle-1",
@@ -444,26 +415,21 @@ describe("Consumer", () => {
             await clock.nextAsync()
             await clock.nextAsync()
 
-            sandbox.assert.calledWith(
-                sqs.send,
-                sinon.match.instanceOf(ReceiveMessageCommand).and(
-                    sinon.match.has("input", {
-                        QueueUrl: "some-queue-url",
-                        MessageAttributeNames: ["attribute-1", "attribute-2"],
-                        AttributeNames: ["MessageGroupId"],
-                        MaxNumberOfMessages: 3,
-                        WaitTimeSeconds: 20,
-                        VisibilityTimeout: 30,
-                    }),
-                ),
-            )
+            sandbox.assert.calledWith(sqs.receiveMessage, {
+                QueueUrl: "some-queue-url",
+                MessageAttributeNames: ["attribute-1", "attribute-2"],
+                AttributeNames: ["MessageGroupId"],
+                MaxNumberOfMessages: 3,
+                WaitTimeSeconds: 20,
+                VisibilityTimeout: 30,
+            })
             sandbox.assert.callCount(handleMessage, 3)
 
             consumer.stop()
         })
 
-        it("removes the messages with same group id if the first handling fails", async () => {
-            sqs.send = overrideResolveStub(ReceiveMessageCommand, {
+        it("removes the messages with same group id if the first handling fails and resets the visibility timeout", async () => {
+            sqs.receiveMessage = stubResolve({
                 Messages: [
                     {
                         ReceiptHandle: "receipt-handle-1",
@@ -508,33 +474,23 @@ describe("Consumer", () => {
             await clock.nextAsync()
             await clock.nextAsync()
 
-            sandbox.assert.calledWith(
-                sqs.send,
-                sinon.match.instanceOf(ReceiveMessageCommand).and(
-                    sinon.match.has("input", {
-                        QueueUrl: "some-queue-url",
-                        MessageAttributeNames: ["attribute-1", "attribute-2"],
-                        AttributeNames: ["MessageGroupId"],
-                        MaxNumberOfMessages: 3,
-                        WaitTimeSeconds: 20,
-                        VisibilityTimeout: 30,
-                    }),
-                ),
-            )
+            sandbox.assert.calledWith(sqs.receiveMessage, {
+                QueueUrl: "some-queue-url",
+                MessageAttributeNames: ["attribute-1", "attribute-2"],
+                AttributeNames: ["MessageGroupId"],
+                MaxNumberOfMessages: 3,
+                WaitTimeSeconds: 20,
+                VisibilityTimeout: 30,
+            })
             sandbox.assert.calledOnce(handleMessage)
-            sandbox.assert.calledWith(
-                sqs.send,
-                sinon.match.instanceOf(ChangeMessageVisibilityBatchCommand).and(
-                    sinon.match.has("input", {
-                        QueueUrl: "some-queue-url",
-                        Entries: [
-                            { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 30 },
-                            { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 30 },
-                            { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 30 },
-                        ],
-                    }),
-                ),
-            )
+            sandbox.assert.calledWith(sqs.changeMessageVisibilityBatch, {
+                QueueUrl: "some-queue-url",
+                Entries: [
+                    { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 30 },
+                    { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 30 },
+                    { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 30 },
+                ],
+            })
 
             consumer.stop()
         })
@@ -549,7 +505,7 @@ describe("Consumer", () => {
                 },
             }
 
-            sqs.send = overrideResolveStub(ReceiveMessageCommand, {
+            sqs.receiveMessage = stubResolve({
                 Messages: [messageWithAttr],
             })
 
@@ -565,25 +521,20 @@ describe("Consumer", () => {
             const message = await pEvent(consumer, "message_received")
             consumer.stop()
 
-            sandbox.assert.calledWith(
-                sqs.send,
-                sinon.match.instanceOf(ReceiveMessageCommand).and(
-                    sinon.match.has("input", {
-                        QueueUrl: "some-queue-url",
-                        AttributeNames: ["ApproximateReceiveCount", "MessageGroupId"],
-                        MessageAttributeNames: ["All"],
-                        MaxNumberOfMessages: 10,
-                        WaitTimeSeconds: 20,
-                        VisibilityTimeout: 30,
-                    }),
-                ),
-            )
+            sandbox.assert.calledWith(sqs.receiveMessage, {
+                QueueUrl: "some-queue-url",
+                AttributeNames: ["ApproximateReceiveCount", "MessageGroupId"],
+                MessageAttributeNames: ["All"],
+                MaxNumberOfMessages: 10,
+                WaitTimeSeconds: 20,
+                VisibilityTimeout: 30,
+            })
 
             assert.equal(message, messageWithAttr)
         })
 
         it("fires an emptyQueue event when all messages have been consumed", async () => {
-            sqs.send = overrideResolveStub(ReceiveMessageCommand, {
+            sqs.receiveMessage = stubResolve({
                 Messages: [],
             })
 
@@ -601,16 +552,11 @@ describe("Consumer", () => {
             await pEvent(consumer, "processing_error")
             consumer.stop()
 
-            sandbox.assert.calledWith(
-                sqs.send,
-                sinon.match.instanceOf(ChangeMessageVisibilityCommand).and(
-                    sinon.match.has("input", {
-                        QueueUrl: "some-queue-url",
-                        ReceiptHandle: "receipt-handle",
-                        VisibilityTimeout: 0,
-                    }),
-                ),
-            )
+            sandbox.assert.calledWith(sqs.changeMessageVisibility, {
+                QueueUrl: "some-queue-url",
+                ReceiptHandle: "receipt-handle",
+                VisibilityTimeout: 0,
+            })
         })
 
         it("does not terminate visibility timeout when `terminateVisibilityTimeout` option is false", async () => {
@@ -621,7 +567,7 @@ describe("Consumer", () => {
             await pEvent(consumer, "processing_error")
             consumer.stop()
 
-            sandbox.assert.notCalled(sqs.send.withArgs(sinon.match.instanceOf(ChangeMessageVisibilityCommand)))
+            sandbox.assert.notCalled(sqs.changeMessageVisibility)
         })
 
         it("fires error event when failed to terminate visibility timeout on processing error", async () => {
@@ -629,27 +575,22 @@ describe("Consumer", () => {
 
             const sqsError = new Error("Processing error")
             sqsError.name = "SQSError"
-            sqs.send = overrideRejectStub(ChangeMessageVisibilityCommand, sqsError)
+            sqs.changeMessageVisibility = stubReject(sqsError)
             consumer.terminateVisibilityTimeout = true
 
             consumer.start()
             await pEvent(consumer, "error")
             consumer.stop()
 
-            sandbox.assert.calledWith(
-                sqs.send,
-                sinon.match.instanceOf(ChangeMessageVisibilityCommand).and(
-                    sinon.match.has("input", {
-                        QueueUrl: "some-queue-url",
-                        ReceiptHandle: "receipt-handle",
-                        VisibilityTimeout: 0,
-                    }),
-                ),
-            )
+            sandbox.assert.calledWith(sqs.changeMessageVisibility, {
+                QueueUrl: "some-queue-url",
+                ReceiptHandle: "receipt-handle",
+                VisibilityTimeout: 0,
+            })
         })
 
         it("passes in the correct visibility timeout for long running handler functions", async () => {
-            sqs.send = overrideResolveStub(ReceiveMessageCommand, {
+            sqs.receiveMessage = stubResolve({
                 Messages: [
                     { MessageId: "1", ReceiptHandle: "receipt-handle-1", Body: "body-1" },
                     { MessageId: "2", ReceiptHandle: "receipt-handle-2", Body: "body-2" },
@@ -671,32 +612,22 @@ describe("Consumer", () => {
             await clock.tickAsync(75000)
             consumer.stop()
 
-            sandbox.assert.calledWith(
-                sqs.send,
-                sinon.match.instanceOf(ChangeMessageVisibilityBatchCommand).and(
-                    sinon.match.has("input", {
-                        QueueUrl: "some-queue-url",
-                        Entries: [
-                            { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 70 },
-                            { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 70 },
-                            { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 70 },
-                        ],
-                    }),
-                ),
-            )
-            sandbox.assert.calledWith(
-                sqs.send,
-                sinon.match.instanceOf(ChangeMessageVisibilityBatchCommand).and(
-                    sinon.match.has("input", {
-                        QueueUrl: "some-queue-url",
-                        Entries: [
-                            { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 100 },
-                            { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 100 },
-                            { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 100 },
-                        ],
-                    }),
-                ),
-            )
+            sandbox.assert.calledWith(sqs.changeMessageVisibilityBatch, {
+                QueueUrl: "some-queue-url",
+                Entries: [
+                    { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 70 },
+                    { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 70 },
+                    { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 70 },
+                ],
+            })
+            sandbox.assert.calledWith(sqs.changeMessageVisibilityBatch, {
+                QueueUrl: "some-queue-url",
+                Entries: [
+                    { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 100 },
+                    { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 100 },
+                    { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 100 },
+                ],
+            })
             sandbox.assert.calledOnce(clearIntervalSpy)
         })
     })
