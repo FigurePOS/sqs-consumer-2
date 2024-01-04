@@ -83,7 +83,7 @@ describe("Consumer", () => {
         sqs.send = createBaseStub()
 
         consumer = new Consumer({
-            queueUrl: "some-queue-url",
+            queueUrl: "some-queue-url.fifo",
             region: "some-region",
             handleMessage,
             sqs,
@@ -99,7 +99,7 @@ describe("Consumer", () => {
         assert.throws(() => {
             new Consumer({
                 region: "some-region",
-                queueUrl: "some-queue-url",
+                queueUrl: "some-queue-url.fifo",
                 handleMessage,
                 batchSize: -1,
             })
@@ -110,7 +110,7 @@ describe("Consumer", () => {
         assert.throws(() => {
             new Consumer({
                 region: "some-region",
-                queueUrl: "some-queue-url",
+                queueUrl: "some-queue-url.fifo",
                 handleMessage,
                 heartbeatInterval: 30,
             })
@@ -121,7 +121,7 @@ describe("Consumer", () => {
         assert.throws(() => {
             new Consumer({
                 region: "some-region",
-                queueUrl: "some-queue-url",
+                queueUrl: "some-queue-url.fifo",
                 handleMessage,
                 heartbeatInterval: 30,
                 visibilityTimeout: 30,
@@ -133,7 +133,7 @@ describe("Consumer", () => {
         it("creates a new instance of a Consumer object", () => {
             const instance = Consumer.create({
                 region: "some-region",
-                queueUrl: "some-queue-url",
+                queueUrl: "some-queue-url.fifo",
                 batchSize: 1,
                 visibilityTimeout: 10,
                 waitTimeSeconds: 10,
@@ -187,7 +187,7 @@ describe("Consumer", () => {
         it("fires a timeout event if handler function takes too long", async () => {
             const handleMessageTimeout = 500
             consumer = new Consumer({
-                queueUrl: "some-queue-url",
+                queueUrl: "some-queue-url.fifo",
                 region: "some-region",
                 handleMessage: () => new Promise((resolve) => setTimeout(resolve, 1000)),
                 handleMessageTimeout,
@@ -208,7 +208,7 @@ describe("Consumer", () => {
 
         it("handles unexpected exceptions thrown by the handler function", async () => {
             consumer = new Consumer({
-                queueUrl: "some-queue-url",
+                queueUrl: "some-queue-url.fifo",
                 region: "some-region",
                 handleMessage: () => {
                     throw new Error("unexpected parsing error")
@@ -321,7 +321,7 @@ describe("Consumer", () => {
 
         it("waits before repolling when a polling timeout is set", async () => {
             consumer = new Consumer({
-                queueUrl: "some-queue-url",
+                queueUrl: "some-queue-url.fifo",
                 region: "some-region",
                 handleMessage,
                 sqs,
@@ -374,7 +374,9 @@ describe("Consumer", () => {
                 sqs.send,
                 sinon.match
                     .instanceOf(DeleteMessageCommand)
-                    .and(sinon.match.has("input", { QueueUrl: "some-queue-url", ReceiptHandle: "receipt-handle" })),
+                    .and(
+                        sinon.match.has("input", { QueueUrl: "some-queue-url.fifo", ReceiptHandle: "receipt-handle" }),
+                    ),
             )
         })
 
@@ -431,7 +433,7 @@ describe("Consumer", () => {
             })
 
             consumer = new Consumer({
-                queueUrl: "some-queue-url",
+                queueUrl: "some-queue-url.fifo",
                 messageAttributeNames: ["attribute-1", "attribute-2"],
                 region: "some-region",
                 handleMessage,
@@ -448,7 +450,7 @@ describe("Consumer", () => {
                 sqs.send,
                 sinon.match.instanceOf(ReceiveMessageCommand).and(
                     sinon.match.has("input", {
-                        QueueUrl: "some-queue-url",
+                        QueueUrl: "some-queue-url.fifo",
                         MessageAttributeNames: ["attribute-1", "attribute-2"],
                         AttributeNames: ["MessageGroupId"],
                         MaxNumberOfMessages: 3,
@@ -495,7 +497,7 @@ describe("Consumer", () => {
             const handleMessage = sandbox.stub().rejects(new Error("Processing error"))
 
             consumer = new Consumer({
-                queueUrl: "some-queue-url",
+                queueUrl: "some-queue-url.fifo",
                 messageAttributeNames: ["attribute-1", "attribute-2"],
                 region: "some-region",
                 handleMessage,
@@ -506,6 +508,62 @@ describe("Consumer", () => {
             consumer.start()
 
             await clock.nextAsync()
+
+            sandbox.assert.calledWith(
+                sqs.send,
+                sinon.match.instanceOf(ReceiveMessageCommand).and(
+                    sinon.match.has("input", {
+                        QueueUrl: "some-queue-url.fifo",
+                        MessageAttributeNames: ["attribute-1", "attribute-2"],
+                        AttributeNames: ["MessageGroupId"],
+                        MaxNumberOfMessages: 3,
+                        WaitTimeSeconds: 20,
+                        VisibilityTimeout: 30,
+                    }),
+                ),
+            )
+            sandbox.assert.calledOnce(handleMessage)
+            sandbox.assert.calledWith(
+                sqs.send,
+                sinon.match.instanceOf(ChangeMessageVisibilityBatchCommand).and(
+                    sinon.match.has("input", {
+                        QueueUrl: "some-queue-url.fifo",
+                        Entries: [
+                            { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 30 },
+                            { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 30 },
+                            { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 30 },
+                        ],
+                    }),
+                ),
+            )
+
+            consumer.stop()
+        })
+
+        it("removes the message if the handling fails for standard queue", async () => {
+            sqs.send = overrideResolveStub(ReceiveMessageCommand, {
+                Messages: [
+                    {
+                        ReceiptHandle: "receipt-handle-1",
+                        MessageId: "1",
+                        Body: "body-1",
+                    },
+                ],
+            })
+
+            const handleMessage = sandbox.stub().rejects(new Error("Processing error"))
+
+            consumer = new Consumer({
+                queueUrl: "some-queue-url",
+                messageAttributeNames: ["attribute-1", "attribute-2"],
+                region: "some-region",
+                handleMessage,
+                batchSize: 3,
+                sqs,
+            })
+
+            consumer.start()
+
             await clock.nextAsync()
 
             sandbox.assert.calledWith(
@@ -524,14 +582,11 @@ describe("Consumer", () => {
             sandbox.assert.calledOnce(handleMessage)
             sandbox.assert.calledWith(
                 sqs.send,
-                sinon.match.instanceOf(ChangeMessageVisibilityBatchCommand).and(
+                sinon.match.instanceOf(ChangeMessageVisibilityCommand).and(
                     sinon.match.has("input", {
                         QueueUrl: "some-queue-url",
-                        Entries: [
-                            { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 30 },
-                            { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 30 },
-                            { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 30 },
-                        ],
+                        ReceiptHandle: "receipt-handle-1",
+                        VisibilityTimeout: 30,
                     }),
                 ),
             )
@@ -554,7 +609,7 @@ describe("Consumer", () => {
             })
 
             consumer = new Consumer({
-                queueUrl: "some-queue-url",
+                queueUrl: "some-queue-url.fifo",
                 attributeNames: ["ApproximateReceiveCount"],
                 region: "some-region",
                 handleMessage,
@@ -569,7 +624,7 @@ describe("Consumer", () => {
                 sqs.send,
                 sinon.match.instanceOf(ReceiveMessageCommand).and(
                     sinon.match.has("input", {
-                        QueueUrl: "some-queue-url",
+                        QueueUrl: "some-queue-url.fifo",
                         AttributeNames: ["ApproximateReceiveCount", "MessageGroupId"],
                         MessageAttributeNames: ["All"],
                         MaxNumberOfMessages: 10,
@@ -605,7 +660,7 @@ describe("Consumer", () => {
                 sqs.send,
                 sinon.match.instanceOf(ChangeMessageVisibilityCommand).and(
                     sinon.match.has("input", {
-                        QueueUrl: "some-queue-url",
+                        QueueUrl: "some-queue-url.fifo",
                         ReceiptHandle: "receipt-handle",
                         VisibilityTimeout: 0,
                     }),
@@ -640,7 +695,7 @@ describe("Consumer", () => {
                 sqs.send,
                 sinon.match.instanceOf(ChangeMessageVisibilityCommand).and(
                     sinon.match.has("input", {
-                        QueueUrl: "some-queue-url",
+                        QueueUrl: "some-queue-url.fifo",
                         ReceiptHandle: "receipt-handle",
                         VisibilityTimeout: 0,
                     }),
@@ -657,7 +712,7 @@ describe("Consumer", () => {
                 ],
             })
             consumer = new Consumer({
-                queueUrl: "some-queue-url",
+                queueUrl: "some-queue-url.fifo",
                 region: "some-region",
                 handleMessage: () => new Promise((resolve) => setTimeout(resolve, 75000)),
                 batchSize: 3,
@@ -675,7 +730,7 @@ describe("Consumer", () => {
                 sqs.send,
                 sinon.match.instanceOf(ChangeMessageVisibilityBatchCommand).and(
                     sinon.match.has("input", {
-                        QueueUrl: "some-queue-url",
+                        QueueUrl: "some-queue-url.fifo",
                         Entries: [
                             { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 70 },
                             { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 70 },
@@ -688,7 +743,7 @@ describe("Consumer", () => {
                 sqs.send,
                 sinon.match.instanceOf(ChangeMessageVisibilityBatchCommand).and(
                     sinon.match.has("input", {
-                        QueueUrl: "some-queue-url",
+                        QueueUrl: "some-queue-url.fifo",
                         Entries: [
                             { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 100 },
                             { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 100 },

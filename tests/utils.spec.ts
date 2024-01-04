@@ -3,6 +3,7 @@ import {
     filterOutByGroupId,
     getNextPendingMessage,
     groupMessageBatchByArrivedTime,
+    isFifo,
     isPollingReadyForNextReceive,
 } from "../src/utils"
 import { PendingMessage } from "../src/types"
@@ -174,6 +175,25 @@ describe("filterOutByGroupId", () => {
         const batch = []
 
         expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "1" }, MessageId: "32" })).to.be.empty
+    })
+})
+
+describe("isFifo", () => {
+    it("returns true if the queue url ends with .fifo", () => {
+        expect(isFifo("https://sqs.eu-west-1.amazonaws.com/123456789012/MyQueue.fifo")).to.be.true
+    })
+
+    it("returns false if the queue url does not end with .fifo", () => {
+        expect(isFifo("https://sqs.eu-west-1.amazonaws.com/123456789012/MyQueue")).to.be.false
+    })
+
+    it("returns false if the queue url is empty", () => {
+        expect(isFifo("")).to.be.false
+    })
+
+    it("returns false if the queue url is null", () => {
+        // @ts-ignore
+        expect(isFifo(null)).to.be.false
     })
 })
 

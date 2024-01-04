@@ -8,6 +8,7 @@ import {
     getNextPendingMessage,
     groupMessageBatchByArrivedTime,
     isConnectionError,
+    isFifo,
     isPollingReadyForNextReceive,
     toSQSError,
 } from "./utils"
@@ -271,12 +272,15 @@ export class Consumer extends EventEmitter {
                 err.message = `Unexpected message handler failure: ${err.message}`
             }
 
-            const messages = getMessagesByGroupId(this.pendingMessages, message)
+            if (isFifo(this.queueUrl)) {
+                const messages = getMessagesByGroupId(this.pendingMessages, message)
+                // processing has failed, remove all following messages with the same groupId
+                this.pendingMessages = filterOutByGroupId(this.pendingMessages, message)
 
-            // processing has failed, remove all following messages with the same groupId
-            this.pendingMessages = filterOutByGroupId(this.pendingMessages, message)
-
-            await this.changeVisibilityTimeoutOfBatch(messages, this.visibilityTimeout, 0)
+                await this.changeVisibilityTimeoutOfBatch(messages, this.visibilityTimeout, 0)
+            } else {
+                await this.changeVisibilityTimeout(message, this.visibilityTimeout)
+            }
 
             this.emitPendingStatus()
 
@@ -328,6 +332,9 @@ export class Consumer extends EventEmitter {
     }
 
     private async changeVisibilityTimeoutBatch(messages: Message[], timeout: number) {
+        if (!messages.length) {
+            return
+        }
         const params = {
             QueueUrl: this.queueUrl,
             Entries: messages.map((message) => ({
