@@ -274,7 +274,7 @@ export class Consumer extends EventEmitter {
 
             if (isFifo(this.queueUrl)) {
                 const messages = getMessagesByGroupId(this.pendingMessages, message)
-
+                console.log(messages, this.pendingMessages)
                 // processing has failed, remove all following messages with the same groupId
                 this.pendingMessages = filterOutByGroupId(this.pendingMessages, message)
 
