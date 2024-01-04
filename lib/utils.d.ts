@@ -9,3 +9,4 @@ export declare const isPollingReadyForNextReceive: (batchSize: number, pendingSi
 export declare const createTimeout: (duration: number) => TimeoutResponse;
 export declare const isConnectionError: (err: Error) => boolean;
 export declare const toSQSError: (err: any, message: string) => SQSError;
+export declare const isFifo: (queueUrl: string) => boolean;
