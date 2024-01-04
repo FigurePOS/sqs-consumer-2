@@ -65,3 +65,11 @@ export const toSQSError = (err, message: string): SQSError => {
 
     return sqsError
 }
+
+export const isFifo = (queueUrl: string): boolean => {
+    if (!queueUrl) {
+        return false
+    }
+    const { length } = queueUrl
+    return queueUrl.substring(length - 5, length) === ".fifo"
+}
