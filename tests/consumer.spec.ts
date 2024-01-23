@@ -36,6 +36,9 @@ function createBaseStub() {
                 ReceiptHandle: "receipt-handle",
                 MessageId: "123",
                 Body: "body",
+                Attributes: {
+                    MessageGroupId: "group-1",
+                },
             },
         ],
     })
@@ -72,6 +75,9 @@ describe("Consumer", () => {
                 ReceiptHandle: "receipt-handle",
                 MessageId: "123",
                 Body: "body",
+                Attributes: {
+                    MessageGroupId: "group-1",
+                },
             },
         ],
     }
@@ -223,6 +229,27 @@ describe("Consumer", () => {
 
             assert.ok(err)
             assert.equal(err.message, "Unexpected message handler failure: unexpected parsing error")
+            assert.equal(consumer.pendingMessages.length, 0)
+        })
+
+        it("handles unexpected exceptions thrown by the handler function for standard queue", async () => {
+            consumer = new Consumer({
+                queueUrl: "some-queue-url",
+                region: "some-region",
+                handleMessage: () => {
+                    throw new Error("unexpected parsing error")
+                },
+                sqs,
+                authenticationErrorTimeout: 20,
+            })
+
+            consumer.start()
+            const err: any = await pEvent(consumer, "processing_error")
+            consumer.stop()
+
+            assert.ok(err)
+            assert.equal(err.message, "Unexpected message handler failure: unexpected parsing error")
+            assert.equal(consumer.pendingMessages.length, 0)
         })
 
         it("fires an error event when an error occurs deleting a message", async () => {
