@@ -279,6 +279,7 @@ export class Consumer extends EventEmitter {
 
                 await this.changeVisibilityTimeoutOfBatch(messages, this.visibilityTimeout, 0)
             } else {
+                this.pendingMessages = this.pendingMessages.filter((m) => m.sqsMessage.MessageId !== message.MessageId)
                 await this.changeVisibilityTimeout(message, this.visibilityTimeout)
             }
 
