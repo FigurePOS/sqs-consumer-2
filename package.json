@@ -1,6 +1,6 @@
 {
     "name": "@figurepos/sqs-consumer",
-    "version": "5.9.0",
+    "version": "5.8.0",
     "main": "lib/index.js",
     "types": "lib/index.d.ts",
     "scripts": {
