@@ -1,54 +1,53 @@
-import { assert, expect } from "chai"
 import {
     filterOutByGroupId,
     getNextPendingMessage,
     groupMessageBatchByArrivedTime,
     isFifo,
     isPollingReadyForNextReceive,
-} from "../src/utils"
-import { PendingMessage } from "../src/types"
+} from "../utils"
+import { PendingMessage } from "../types"
 
 describe("getNextPendingMessage", () => {
     it("return null given empty message batch", () => {
         const batch = []
-        const result = null
+        const result = undefined
 
-        assert.equal(getNextPendingMessage(batch), result)
+        expect(getNextPendingMessage(batch)).toEqual(result)
     })
 
     it("return first non processing message given message batch", () => {
         const result = createMessage("2", "2", false)
         const batch = [createMessage("1", "1", true), result]
 
-        assert.equal(getNextPendingMessage(batch), result)
+        expect(getNextPendingMessage(batch)).toEqual(result)
     })
 
     it("return first non processing with groupId different from already processing", () => {
         const result = createMessage("3", "2", false)
         const batch = [createMessage("1", "1", true), createMessage("2", "1", false), result]
 
-        assert.equal(getNextPendingMessage(batch), result)
+        expect(getNextPendingMessage(batch)).toEqual(result)
     })
 
     it("return null because the only processable message (id 2) is blocked by id 1", () => {
         const batch = [createMessage("1", "1", true), createMessage("2", "1", false), createMessage("3", "2", true)]
-        const result = null
+        const result = undefined
 
-        assert.equal(getNextPendingMessage(batch), result)
+        expect(getNextPendingMessage(batch)).toEqual(result)
     })
 
     it("return first not processing message if groupIds not defined", () => {
         const result = createMessage("2", null, false)
         const batch = [createMessage("1", null, true), result, createMessage("3", null, false)]
 
-        assert.equal(getNextPendingMessage(batch), result)
+        expect(getNextPendingMessage(batch)).toEqual(result)
     })
 
     it("return null if any message with groupId is processing", () => {
         // const result = createMessage("2", null, false)
         const batch = [createMessage("1", "group1", true), createMessage("1", "group1", false)]
 
-        assert.equal(getNextPendingMessage(batch), null)
+        expect(getNextPendingMessage(batch)).toEqual(undefined)
     })
 })
 
@@ -56,7 +55,7 @@ describe("groupMessageBatchByArrivedTime", () => {
     it("return empty list given empty list", () => {
         const batch = []
 
-        expect(groupMessageBatchByArrivedTime(batch)).to.be.empty
+        expect(groupMessageBatchByArrivedTime(batch)).toHaveLength(0)
     })
 
     it("return grouped messages by the same arrived timex", () => {
@@ -75,25 +74,25 @@ describe("groupMessageBatchByArrivedTime", () => {
             [createMessage("4", "1", false, 3), createMessage("6", "1", false, 3)],
         ]
 
-        expect(groupMessageBatchByArrivedTime(batch)).to.deep.equal(result)
+        expect(groupMessageBatchByArrivedTime(batch)).toEqual(result)
     })
 })
 
 describe("isPollingReadyForNextReceive", () => {
     it("returns false if the batch is completely full", () => {
-        expect(isPollingReadyForNextReceive(100, 100)).to.be.false
+        expect(isPollingReadyForNextReceive(100, 100)).toBeFalsy()
     })
     it("returns true if the batch is completely empty", () => {
-        expect(isPollingReadyForNextReceive(100, 0)).to.be.true
+        expect(isPollingReadyForNextReceive(100, 0)).toBeTruthy()
     })
     it("returns true if there is still space for next 10 messages", () => {
-        expect(isPollingReadyForNextReceive(100, 90)).to.be.true
+        expect(isPollingReadyForNextReceive(100, 90)).toBeTruthy()
     })
     it("returns false if there is no space for next 10 messages", () => {
-        expect(isPollingReadyForNextReceive(100, 91)).to.be.false
+        expect(isPollingReadyForNextReceive(100, 91)).toBeFalsy()
     })
     it("returns false if there is no space for next 3 messages", () => {
-        expect(isPollingReadyForNextReceive(3, 1)).to.be.false
+        expect(isPollingReadyForNextReceive(3, 1)).toBeFalsy()
     })
 })
 
@@ -114,7 +113,7 @@ describe("filterOutByGroupId", () => {
             createMessage("6", "4", false, 6),
         ]
 
-        expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "1" }, MessageId: "1" })).to.deep.equal(result)
+        expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "1" }, MessageId: "1" })).toEqual(result)
     })
 
     it("filters no messages if the same groupId not present", () => {
@@ -129,9 +128,7 @@ describe("filterOutByGroupId", () => {
             createMessage("3", "3", true, 3),
         ]
 
-        expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "100" }, MessageId: "100" })).to.deep.equal(
-            result,
-        )
+        expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "100" }, MessageId: "100" })).toEqual(result)
     })
 
     it("doesnt remove anything if messages don't have group id at all (no fifo)", () => {
@@ -146,9 +143,7 @@ describe("filterOutByGroupId", () => {
             createMessage("3", null, true, 3),
         ]
 
-        expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "1" }, MessageId: "31" })).to.deep.equal(
-            result,
-        )
+        expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "1" }, MessageId: "31" })).toEqual(result)
     })
 
     it("removes all messgaes with the same message id (just to be sure)", () => {
@@ -162,38 +157,38 @@ describe("filterOutByGroupId", () => {
         ]
         const result = [createMessage("1", null, true, 1), createMessage("3", null, true, 3)]
 
-        expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "2" }, MessageId: "2" })).to.deep.equal(result)
+        expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "2" }, MessageId: "2" })).toEqual(result)
     })
 
     it("filters all messages if all pending messages has the target groupId", () => {
         const batch = [createMessage("1", "1", true, 1), createMessage("2", "1", true, 2)]
 
-        expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "1" }, MessageId: "3" })).to.be.empty
+        expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "1" }, MessageId: "3" })).toHaveLength(0)
     })
 
     it("produces empty array pending message is empty", () => {
         const batch = []
 
-        expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "1" }, MessageId: "32" })).to.be.empty
+        expect(filterOutByGroupId(batch, { Attributes: { MessageGroupId: "1" }, MessageId: "32" })).toHaveLength(0)
     })
 })
 
 describe("isFifo", () => {
     it("returns true if the queue url ends with .fifo", () => {
-        expect(isFifo("https://sqs.eu-west-1.amazonaws.com/123456789012/MyQueue.fifo")).to.be.true
+        expect(isFifo("https://sqs.eu-west-1.amazonaws.com/123456789012/MyQueue.fifo")).toBeTruthy()
     })
 
     it("returns false if the queue url does not end with .fifo", () => {
-        expect(isFifo("https://sqs.eu-west-1.amazonaws.com/123456789012/MyQueue")).to.be.false
+        expect(isFifo("https://sqs.eu-west-1.amazonaws.com/123456789012/MyQueue")).toBeFalsy()
     })
 
     it("returns false if the queue url is empty", () => {
-        expect(isFifo("")).to.be.false
+        expect(isFifo("")).toBeFalsy()
     })
 
     it("returns false if the queue url is null", () => {
         // @ts-ignore
-        expect(isFifo(null)).to.be.false
+        expect(isFifo(null)).toBeFalsy()
     })
 })
 

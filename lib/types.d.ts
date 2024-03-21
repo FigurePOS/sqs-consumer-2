@@ -33,14 +33,14 @@ export interface Events {
     batch_received: [];
     visibility_timeout_changed: [PendingMessages, any, number, number];
 }
-export declare type PendingStatus = {
+export type PendingStatus = {
     messagesProcessing: number;
     messagesWaiting: number;
 };
-export declare type PendingMessage = {
+export type PendingMessage = {
     sqsMessage: Message;
     processing: boolean;
     arrivedAt: number;
     processingStartedAt: number | null;
 };
-export declare type PendingMessages = PendingMessage[];
+export type PendingMessages = PendingMessage[];

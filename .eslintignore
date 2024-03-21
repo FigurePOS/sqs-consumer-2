@@ -1,0 +1,7 @@
+build
+lib
+my_resources
+node_modules
+scripts
+tests
+__tests__

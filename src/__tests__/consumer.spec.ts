@@ -1,7 +1,6 @@
-import { assert } from "chai"
-import * as pEvent from "p-event"
+import { pEvent } from "p-event"
 import * as sinon from "sinon"
-import { Consumer } from "../src/consumer"
+import { Consumer } from "../consumer"
 import { Command } from "@smithy/smithy-client"
 import {
     ReceiveMessageCommand,
@@ -9,6 +8,7 @@ import {
     DeleteMessageBatchCommand,
     ChangeMessageVisibilityCommand,
     ChangeMessageVisibilityBatchCommand,
+    Message,
 } from "@aws-sdk/client-sqs"
 
 const sandbox = sinon.createSandbox()
@@ -102,29 +102,29 @@ describe("Consumer", () => {
     })
 
     it("requires the batchSize option to be greater than 0", () => {
-        assert.throws(() => {
+        expect(() => {
             new Consumer({
                 region: "some-region",
                 queueUrl: "some-queue-url.fifo",
                 handleMessage,
                 batchSize: -1,
             })
-        })
+        }).toThrow()
     })
 
     it("requires visibilityTimeout to be set with heartbeatInterval", () => {
-        assert.throws(() => {
+        expect(() => {
             new Consumer({
                 region: "some-region",
                 queueUrl: "some-queue-url.fifo",
                 handleMessage,
                 heartbeatInterval: 30,
             })
-        })
+        }).toThrow()
     })
 
     it("requires heartbeatInterval to be less than visibilityTimeout", () => {
-        assert.throws(() => {
+        expect(() => {
             new Consumer({
                 region: "some-region",
                 queueUrl: "some-queue-url.fifo",
@@ -132,7 +132,7 @@ describe("Consumer", () => {
                 heartbeatInterval: 30,
                 visibilityTimeout: 30,
             })
-        })
+        }).toThrow()
     })
 
     describe(".create", () => {
@@ -146,7 +146,7 @@ describe("Consumer", () => {
                 handleMessage,
             })
 
-            assert.instanceOf(instance, Consumer)
+            expect(instance).toBeInstanceOf(Consumer)
         })
     })
 
@@ -161,8 +161,8 @@ describe("Consumer", () => {
             const err: any = await pEvent(consumer, "error")
 
             consumer.stop()
-            assert.ok(err)
-            assert.equal(err.message, "SQS receive message failed: Receive error")
+            expect(err).not.toBeNull()
+            expect(err.message).toEqual("SQS receive message failed: Receive error")
         })
 
         it("retains sqs error information", async () => {
@@ -180,14 +180,14 @@ describe("Consumer", () => {
             const err: any = await pEvent(consumer, "error")
             consumer.stop()
 
-            assert.ok(err)
-            assert.equal(err.message, "SQS receive message failed: Receive error")
-            assert.equal(err.code, receiveErr.code)
-            assert.equal(err.retryable, receiveErr.retryable)
-            assert.equal(err.statusCode, receiveErr.statusCode)
-            assert.equal(err.time, receiveErr.time)
-            assert.equal(err.hostname, receiveErr.hostname)
-            assert.equal(err.region, receiveErr.region)
+            expect(err).not.toBeNull()
+            expect(err.message).toEqual("SQS receive message failed: Receive error")
+            expect(err.code).toEqual(receiveErr.code)
+            expect(err.retryable).toEqual(receiveErr.retryable)
+            expect(err.statusCode).toEqual(receiveErr.statusCode)
+            expect(err.time).toEqual(receiveErr.time)
+            expect(err.hostname).toEqual(receiveErr.hostname)
+            expect(err.region).toEqual(receiveErr.region)
         })
 
         it("fires a timeout event if handler function takes too long", async () => {
@@ -208,8 +208,10 @@ describe("Consumer", () => {
             ])
             consumer.stop()
 
-            assert.ok(err)
-            assert.equal(err.message, `Message handler timed out after ${handleMessageTimeout}ms: Operation timed out.`)
+            expect(err).not.toBeNull()
+            expect(err.message).toEqual(
+                `Message handler timed out after ${handleMessageTimeout}ms: Operation timed out.`,
+            )
         })
 
         it("handles unexpected exceptions thrown by the handler function", async () => {
@@ -227,9 +229,9 @@ describe("Consumer", () => {
             const err: any = await pEvent(consumer, "processing_error")
             consumer.stop()
 
-            assert.ok(err)
-            assert.equal(err.message, "Unexpected message handler failure: unexpected parsing error")
-            assert.equal(consumer.pendingMessages.length, 0)
+            expect(err).not.toBeNull()
+            expect(err.message).toEqual("Unexpected message handler failure: unexpected parsing error")
+            expect(consumer.pendingMessages.length).toEqual(0)
         })
 
         it("handles unexpected exceptions thrown by the handler function for standard queue", async () => {
@@ -247,9 +249,9 @@ describe("Consumer", () => {
             const err: any = await pEvent(consumer, "processing_error")
             consumer.stop()
 
-            assert.ok(err)
-            assert.equal(err.message, "Unexpected message handler failure: unexpected parsing error")
-            assert.equal(consumer.pendingMessages.length, 0)
+            expect(err).not.toBeNull()
+            expect(err.message).toEqual("Unexpected message handler failure: unexpected parsing error")
+            expect(consumer.pendingMessages.length).toEqual(0)
         })
 
         it("fires an error event when an error occurs deleting a message", async () => {
@@ -262,8 +264,8 @@ describe("Consumer", () => {
             const err: any = await pEvent(consumer, "error")
             consumer.stop()
 
-            assert.ok(err)
-            assert.equal(err.message, "SQS delete message failed: Delete error")
+            expect(err).not.toBeNull()
+            expect(err.message).toEqual("SQS delete message failed: Delete error")
         })
 
         it("fires a `processing_error` event when a non-`SQSError` error occurs processing a message", async () => {
@@ -275,8 +277,10 @@ describe("Consumer", () => {
             const [err, message] = await pEvent(consumer, "processing_error", { multiArgs: true })
             consumer.stop()
 
-            assert.equal(err.message, "Unexpected message handler failure: Processing error")
-            assert.equal(message.MessageId, "123")
+            const errTyped = err as any
+            const messageTyped = message as Message
+            expect(errTyped.message).toEqual("Unexpected message handler failure: Processing error")
+            expect(messageTyped.MessageId).toEqual("123")
         })
 
         it("fires an `error` event when an `SQSError` occurs processing a message", async () => {
@@ -290,8 +294,10 @@ describe("Consumer", () => {
             const [err, message] = await pEvent(consumer, "error", { multiArgs: true })
             consumer.stop()
 
-            assert.equal(err.message, "SQS delete message failed: Processing error")
-            assert.equal(message.MessageId, "123")
+            const errTyped = err as any
+            const messageTyped = message as Message
+            expect(errTyped.message).toEqual("SQS delete message failed: Processing error")
+            expect(messageTyped.MessageId).toEqual("123")
         })
 
         it("waits before repolling when a credentials error occurs", async () => {
@@ -369,7 +375,7 @@ describe("Consumer", () => {
             const message = await pEvent(consumer, "message_received")
             consumer.stop()
 
-            assert.deepEqual(message, response.Messages[0])
+            expect(message).toEqual(response.Messages[0])
         })
 
         it("fires a message_processed event when a message is successfully deleted", async () => {
@@ -379,7 +385,7 @@ describe("Consumer", () => {
             const message = await pEvent(consumer, "message_received")
             consumer.stop()
 
-            assert.deepEqual(message, response.Messages[0])
+            expect(message).toEqual(response.Messages[0])
         })
 
         it("calls the handleMessage function when a message is received", async () => {
@@ -661,7 +667,7 @@ describe("Consumer", () => {
                 ),
             )
 
-            assert.equal(message, messageWithAttr)
+            expect(message).toEqual(messageWithAttr)
         })
 
         it("fires an emptyQueue event when all messages have been consumed", async () => {
@@ -831,14 +837,14 @@ describe("Consumer", () => {
     describe("isRunning", async () => {
         it("returns true if the consumer is polling", () => {
             consumer.start()
-            assert.isTrue(consumer.isRunning)
+            expect(consumer.isRunning).toBeTruthy()
             consumer.stop()
         })
 
         it("returns false if the consumer is not polling", () => {
             consumer.start()
             consumer.stop()
-            assert.isFalse(consumer.isRunning)
+            expect(consumer.isRunning).toBeFalsy()
         })
     })
 })
