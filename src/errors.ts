@@ -1,4 +1,3 @@
-
 class SQSError extends Error {
     code: string | null
     statusCode: number | null
