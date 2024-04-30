@@ -1,4 +1,4 @@
-import { pEvent } from "p-event"
+import pEvent from "p-event"
 import * as sinon from "sinon"
 import { Consumer } from "../consumer"
 import { Command } from "@smithy/smithy-client"
@@ -98,6 +98,7 @@ describe("Consumer", () => {
     })
 
     afterEach(() => {
+        clock.restore()
         sandbox.restore()
     })
 
@@ -834,7 +835,7 @@ describe("Consumer", () => {
         })
     })
 
-    describe("isRunning", async () => {
+    describe("isRunning", () => {
         it("returns true if the consumer is polling", () => {
             consumer.start()
             expect(consumer.isRunning).toBeTruthy()
