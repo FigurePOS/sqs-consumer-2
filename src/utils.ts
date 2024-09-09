@@ -1,6 +1,6 @@
-import { PendingMessage, PendingMessages, TimeoutResponse } from "./types"
-import { SQSError, TimeoutError } from "./errors"
 import { Message } from "@aws-sdk/client-sqs"
+import { SQSError, TimeoutError } from "./errors"
+import { PendingMessage, PendingMessages, TimeoutResponse } from "./types"
 
 export const getNextPendingMessage = (batch: PendingMessages): PendingMessage | null => {
     const uniqGroupIds = batch
@@ -10,6 +10,16 @@ export const getNextPendingMessage = (batch: PendingMessages): PendingMessage | 
     return batch
         .filter((msg) => !uniqGroupIds.includes(msg.sqsMessage.Attributes?.MessageGroupId))
         .find((b) => !b.processing)
+}
+
+/**
+ * Gets the first message batch from pending messages grouped by MessageGroupId
+ * @param batch
+ * @todo think of using generic function to group by any key
+ */
+export const getNextPendingMessageBatch = (batch: PendingMessages): PendingMessages => {
+    const [batchToProcess] = groupMessageBatchByGroupId(batch.filter((m) => !m.processing))
+    return batchToProcess || []
 }
 
 export const filterOutByGroupId = (pendingMessages: PendingMessages, msg: Message): PendingMessages => {
@@ -31,6 +41,12 @@ export const getMessagesByGroupId = (pendingMessages: PendingMessages, msg: Mess
 
 export const groupMessageBatchByArrivedTime = (batch: PendingMessages): PendingMessages[] => {
     return [...new Set(batch.map((w) => w.arrivedAt))].map((arrived) => batch.filter((w) => w.arrivedAt === arrived))
+}
+
+export const groupMessageBatchByGroupId = (batch: PendingMessage[]): PendingMessage[][] => {
+    return [...new Set(batch.map((w) => w.sqsMessage.Attributes?.MessageGroupId))].map((groupId) => {
+        return batch.filter((w) => w.sqsMessage.Attributes?.MessageGroupId === groupId)
+    })
 }
 
 export const isPollingReadyForNextReceive = (batchSize: number, pendingSize: number): boolean => {
@@ -72,4 +88,8 @@ export const isFifo = (queueUrl: string): boolean => {
     }
     const { length } = queueUrl
     return queueUrl.substring(length - 5, length) === ".fifo"
+}
+
+export const removeMessagesFromPending = (pendingMessages: PendingMessages, messages: Message[]): PendingMessages => {
+    return pendingMessages.filter((m) => !messages.find((msg) => msg.MessageId === m.sqsMessage.MessageId))
 }

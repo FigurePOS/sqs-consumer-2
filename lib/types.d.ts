@@ -4,7 +4,7 @@ export interface TimeoutResponse {
     timeout: NodeJS.Timeout | null;
     pending: Promise<void>;
 }
-export interface ConsumerOptions {
+export declare type ConsumerOptions = {
     queueUrl: string;
     attributeNames?: string[];
     messageAttributeNames?: string[];
@@ -19,19 +19,23 @@ export interface ConsumerOptions {
     sqs?: SQSClient;
     region?: string;
     handleMessageTimeout?: number;
-    handleMessage(message: Message): Promise<void>;
-}
+    handleMessage?: (message: Message) => Promise<void>;
+    handleMessageBatch?: (messages: Message[]) => Promise<void>;
+};
 export interface Events {
     empty: [];
     message_received: [Message];
     message_processed: [Message, any];
     error: [Error, void | Message | Message[]];
-    timeout_error: [Error, Message];
+    timeout_error: [Error, Message | Message[]];
     processing_error: [Error, Message];
     stopped: [];
     pending_status: [PendingStatus];
     batch_received: [];
     visibility_timeout_changed: [PendingMessages, any, number, number];
+    message_batch_received: [Message[]];
+    message_batch_processed: [Message[], any];
+    batch_processing_error: [Error, Message[]];
 }
 export declare type PendingStatus = {
     messagesProcessing: number;

@@ -1,15 +1,16 @@
+import {
+    ChangeMessageVisibilityBatchCommand,
+    ChangeMessageVisibilityCommand,
+    DeleteMessageBatchCommand,
+    DeleteMessageCommand,
+    Message,
+    ReceiveMessageCommand,
+} from "@aws-sdk/client-sqs"
+import { Command } from "@smithy/smithy-client"
 import { assert } from "chai"
 import * as pEvent from "p-event"
 import * as sinon from "sinon"
 import { Consumer } from "../src/consumer"
-import { Command } from "@smithy/smithy-client"
-import {
-    ReceiveMessageCommand,
-    DeleteMessageCommand,
-    DeleteMessageBatchCommand,
-    ChangeMessageVisibilityCommand,
-    ChangeMessageVisibilityBatchCommand,
-} from "@aws-sdk/client-sqs"
 
 const sandbox = sinon.createSandbox()
 
@@ -148,6 +149,18 @@ describe("Consumer", () => {
 
             assert.instanceOf(instance, Consumer)
         })
+
+        it("should throw an error if handler is missing", () => {
+            assert.throws(() => {
+                Consumer.create({
+                    region: "some-region",
+                    queueUrl: "some-queue-url.fifo",
+                    batchSize: 1,
+                    visibilityTimeout: 10,
+                    waitTimeSeconds: 10,
+                })
+            })
+        })
     })
 
     describe(".start", () => {
@@ -272,7 +285,7 @@ describe("Consumer", () => {
             handleMessage.rejects(processingErr)
 
             consumer.start()
-            const [err, message] = await pEvent(consumer, "processing_error", { multiArgs: true })
+            const [err, message]: [Error, Message] = await pEvent(consumer, "processing_error", { multiArgs: true })
             consumer.stop()
 
             assert.equal(err.message, "Unexpected message handler failure: Processing error")
@@ -287,7 +300,7 @@ describe("Consumer", () => {
             sqs.send = overrideRejectStub(DeleteMessageCommand, sqsError)
 
             consumer.start()
-            const [err, message] = await pEvent(consumer, "error", { multiArgs: true })
+            const [err, message]: [Error, Message] = await pEvent(consumer, "error", { multiArgs: true })
             consumer.stop()
 
             assert.equal(err.message, "SQS delete message failed: Processing error")
@@ -376,7 +389,7 @@ describe("Consumer", () => {
             handleMessage.resolves()
 
             consumer.start()
-            const message = await pEvent(consumer, "message_received")
+            const message = await pEvent(consumer, "message_processed")
             consumer.stop()
 
             assert.deepEqual(message, response.Messages[0])
@@ -825,6 +838,381 @@ describe("Consumer", () => {
             await clock.runAllAsync()
 
             sandbox.assert.calledTwice(handleStop)
+        })
+    })
+
+    describe("batch processing", () => {
+        let handleMessageBatch
+
+        const response = [
+            {
+                ReceiptHandle: "receipt-handle-1",
+                MessageId: "1",
+                Body: "body-1",
+                Attributes: {
+                    MessageGroupId: "group-1",
+                },
+            },
+            {
+                ReceiptHandle: "receipt-handle-3",
+                MessageId: "3",
+                Body: "body-3",
+                Attributes: {
+                    MessageGroupId: "group-1",
+                },
+            },
+        ]
+
+        beforeEach(() => {
+            handleMessageBatch = sandbox.stub().resolves(null)
+            sqs.send = overrideResolveStub(ReceiveMessageCommand, {
+                Messages: [
+                    {
+                        ReceiptHandle: "receipt-handle-1",
+                        MessageId: "1",
+                        Body: "body-1",
+                        Attributes: {
+                            MessageGroupId: "group-1",
+                        },
+                    },
+                    {
+                        ReceiptHandle: "receipt-handle-2",
+                        MessageId: "2",
+                        Body: "body-2",
+                        Attributes: {
+                            MessageGroupId: "group-2",
+                        },
+                    },
+                    {
+                        ReceiptHandle: "receipt-handle-3",
+                        MessageId: "3",
+                        Body: "body-3",
+                        Attributes: {
+                            MessageGroupId: "group-1",
+                        },
+                    },
+                ],
+            })
+
+            consumer = new Consumer({
+                queueUrl: "some-queue-url.fifo",
+                region: "some-region",
+                handleMessageBatch,
+                sqs,
+                authenticationErrorTimeout: 20,
+            })
+        })
+
+        it("fires a message_batch_received event when a batch of messages is received", async () => {
+            consumer.start()
+            const messages = await pEvent(consumer, "message_batch_received")
+            consumer.stop()
+
+            assert.deepEqual(messages, response)
+        })
+
+        it("fires a message_batch_processed event when a batch of messages is successfully deleted", async () => {
+            consumer.start()
+            const messages = await pEvent(consumer, "message_batch_processed")
+            consumer.stop()
+
+            assert.deepEqual(messages, response)
+        })
+
+        it("calls the handleMessageBatch function when a messages are received", async () => {
+            consumer.start()
+            await pEvent(consumer, "message_batch_processed")
+            consumer.stop()
+
+            sandbox.assert.calledWith(handleMessageBatch, response)
+        })
+
+        it("deletes the messages when the handleMessageBatch function is called", async () => {
+            handleMessageBatch.resolves()
+
+            consumer.start()
+            await pEvent(consumer, "message_batch_processed")
+            consumer.stop()
+
+            sandbox.assert.calledWith(
+                sqs.send,
+                sinon.match.instanceOf(DeleteMessageBatchCommand).and(
+                    sinon.match.has("input", {
+                        QueueUrl: "some-queue-url.fifo",
+                        Entries: [
+                            {
+                                Id: "1",
+                                ReceiptHandle: "receipt-handle-1",
+                            },
+                            {
+                                Id: "3",
+                                ReceiptHandle: "receipt-handle-3",
+                            },
+                        ],
+                    }),
+                ),
+            )
+
+            assert.deepEqual(consumer.pendingMessages, [
+                {
+                    sqsMessage: {
+                        ReceiptHandle: "receipt-handle-2",
+                        MessageId: "2",
+                        Body: "body-2",
+                        Attributes: {
+                            MessageGroupId: "group-2",
+                        },
+                    },
+                    processing: false,
+                    arrivedAt: 0,
+                    processingStartedAt: null,
+                },
+            ])
+        })
+
+        it("doesn't delete the messages when a processing error is reported", async () => {
+            handleMessageBatch.rejects(new Error("Processing error"))
+
+            consumer.start()
+            await pEvent(consumer, "batch_processing_error")
+            consumer.stop()
+
+            sandbox.assert.notCalled(sqs.send.withArgs(sinon.match.instanceOf(DeleteMessageBatchCommand)))
+        })
+
+        it("consumes another message batch once one is processed", async () => {
+            handleMessageBatch.onSecondCall().callsFake(consumer.stop).resolves()
+
+            consumer.start()
+            await clock.runToLastAsync()
+
+            sandbox.assert.calledTwice(handleMessageBatch)
+        })
+
+        it("removes the messages with same group id if the first handling fails", async () => {
+            sqs.send = overrideResolveStub(ReceiveMessageCommand, {
+                Messages: [
+                    {
+                        ReceiptHandle: "receipt-handle-1",
+                        MessageId: "1",
+                        Body: "body-1",
+                        Attributes: {
+                            MessageGroupId: "group-1",
+                        },
+                    },
+                    {
+                        ReceiptHandle: "receipt-handle-2",
+                        MessageId: "2",
+                        Body: "body-2",
+                        Attributes: {
+                            MessageGroupId: "group-1",
+                        },
+                    },
+                    {
+                        ReceiptHandle: "receipt-handle-3",
+                        MessageId: "3",
+                        Body: "body-3",
+                        Attributes: {
+                            MessageGroupId: "group-1",
+                        },
+                    },
+                ],
+            })
+
+            const handleMessageBatch = sandbox.stub().rejects(new Error("Processing error"))
+
+            consumer = new Consumer({
+                queueUrl: "some-queue-url.fifo",
+                messageAttributeNames: ["attribute-1", "attribute-2"],
+                region: "some-region",
+                handleMessageBatch,
+                batchSize: 3,
+                sqs,
+            })
+
+            consumer.start()
+
+            await clock.nextAsync()
+
+            sandbox.assert.calledWith(
+                sqs.send,
+                sinon.match.instanceOf(ReceiveMessageCommand).and(
+                    sinon.match.has("input", {
+                        QueueUrl: "some-queue-url.fifo",
+                        MessageAttributeNames: ["attribute-1", "attribute-2"],
+                        AttributeNames: ["MessageGroupId"],
+                        MaxNumberOfMessages: 3,
+                        WaitTimeSeconds: 20,
+                        VisibilityTimeout: 30,
+                    }),
+                ),
+            )
+            sandbox.assert.calledOnce(handleMessageBatch)
+            sandbox.assert.calledWith(
+                sqs.send,
+                sinon.match.instanceOf(ChangeMessageVisibilityBatchCommand).and(
+                    sinon.match.has("input", {
+                        QueueUrl: "some-queue-url.fifo",
+                        Entries: [
+                            { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 30 },
+                            { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 30 },
+                            { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 30 },
+                        ],
+                    }),
+                ),
+            )
+
+            consumer.stop()
+        })
+
+        it("terminate message visibility timeout on processing error", async () => {
+            handleMessageBatch.rejects(new Error("Processing error"))
+
+            consumer.terminateVisibilityTimeout = true
+
+            consumer.start()
+            await pEvent(consumer, "batch_processing_error")
+            consumer.stop()
+
+            sandbox.assert.calledWith(
+                sqs.send,
+                sinon.match.instanceOf(ChangeMessageVisibilityBatchCommand).and(
+                    sinon.match.has("input", {
+                        QueueUrl: "some-queue-url.fifo",
+                        Entries: [
+                            {
+                                Id: "1",
+                                ReceiptHandle: "receipt-handle-1",
+                                VisibilityTimeout: 0,
+                            },
+                            {
+                                Id: "3",
+                                ReceiptHandle: "receipt-handle-3",
+                                VisibilityTimeout: 0,
+                            },
+                        ],
+                    }),
+                ),
+            )
+        })
+
+        it("does not terminate visibility timeout when `terminateVisibilityTimeout` option is false", async () => {
+            handleMessageBatch.rejects(new Error("Processing error"))
+            consumer.terminateVisibilityTimeout = false
+
+            consumer.start()
+            await pEvent(consumer, "batch_processing_error")
+            consumer.stop()
+
+            sandbox.assert.notCalled(sqs.send.withArgs(sinon.match.instanceOf(ChangeMessageVisibilityBatchCommand)))
+        })
+
+        it("fires error event when failed to terminate visibility timeout on processing error", async () => {
+            handleMessageBatch.rejects(new Error("Processing error"))
+
+            const sqsError = new Error("Processing error")
+            sqsError.name = "SQSError"
+            const overriddenStub = overrideRejectStub(ChangeMessageVisibilityBatchCommand, sqsError)
+            overriddenStub.withArgs(sinon.match.instanceOf(ReceiveMessageCommand)).resolves({
+                Messages: [
+                    {
+                        ReceiptHandle: "receipt-handle-1",
+                        MessageId: "1",
+                        Body: "body-1",
+                        Attributes: {
+                            MessageGroupId: "group-1",
+                        },
+                    },
+                    {
+                        ReceiptHandle: "receipt-handle-3",
+                        MessageId: "3",
+                        Body: "body-3",
+                        Attributes: {
+                            MessageGroupId: "group-1",
+                        },
+                    },
+                ],
+            })
+            sqs.send = overriddenStub
+            consumer.terminateVisibilityTimeout = true
+
+            consumer.start()
+            await pEvent(consumer, "error")
+            consumer.stop()
+
+            sandbox.assert.calledWith(
+                sqs.send,
+                sinon.match.instanceOf(ChangeMessageVisibilityBatchCommand).and(
+                    sinon.match.has("input", {
+                        QueueUrl: "some-queue-url.fifo",
+                        Entries: [
+                            {
+                                Id: "1",
+                                ReceiptHandle: "receipt-handle-1",
+                                VisibilityTimeout: 0,
+                            },
+                            {
+                                Id: "3",
+                                ReceiptHandle: "receipt-handle-3",
+                                VisibilityTimeout: 0,
+                            },
+                        ],
+                    }),
+                ),
+            )
+        })
+
+        // TODO rewrite everything below for batch processing
+        it("passes in the correct visibility timeout for long running handler functions", async () => {
+            sqs.send = overrideResolveStub(ReceiveMessageCommand, {
+                Messages: [
+                    { MessageId: "1", ReceiptHandle: "receipt-handle-1", Body: "body-1" },
+                    { MessageId: "2", ReceiptHandle: "receipt-handle-2", Body: "body-2" },
+                    { MessageId: "3", ReceiptHandle: "receipt-handle-3", Body: "body-3" },
+                ],
+            })
+            consumer = new Consumer({
+                queueUrl: "some-queue-url.fifo",
+                region: "some-region",
+                handleMessage: () => new Promise((resolve) => setTimeout(resolve, 75000)),
+                batchSize: 3,
+                sqs,
+                visibilityTimeout: 40,
+                heartbeatInterval: 30,
+            })
+            const clearIntervalSpy = sinon.spy(global, "clearInterval")
+
+            consumer.start()
+            await clock.tickAsync(75000)
+            consumer.stop()
+
+            sandbox.assert.calledWith(
+                sqs.send,
+                sinon.match.instanceOf(ChangeMessageVisibilityBatchCommand).and(
+                    sinon.match.has("input", {
+                        QueueUrl: "some-queue-url.fifo",
+                        Entries: [
+                            { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 70 },
+                            { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 70 },
+                            { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 70 },
+                        ],
+                    }),
+                ),
+            )
+            sandbox.assert.calledWith(
+                sqs.send,
+                sinon.match.instanceOf(ChangeMessageVisibilityBatchCommand).and(
+                    sinon.match.has("input", {
+                        QueueUrl: "some-queue-url.fifo",
+                        Entries: [
+                            { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 100 },
+                            { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 100 },
+                            { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 100 },
+                        ],
+                    }),
+                ),
+            )
+            sandbox.assert.calledOnce(clearIntervalSpy)
         })
     })
 

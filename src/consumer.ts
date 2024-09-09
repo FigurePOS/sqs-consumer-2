@@ -1,21 +1,7 @@
-import { EventEmitter } from "events"
-import { autoBind } from "./bind"
-import { SQSError, TimeoutError } from "./errors"
-import {
-    createTimeout,
-    filterOutByGroupId,
-    getMessagesByGroupId,
-    getNextPendingMessage,
-    groupMessageBatchByArrivedTime,
-    isConnectionError,
-    isFifo,
-    isPollingReadyForNextReceive,
-    toSQSError,
-} from "./utils"
-import { ConsumerOptions, Events, PendingMessage, PendingMessages } from "./types"
 import {
     ChangeMessageVisibilityBatchCommand,
     ChangeMessageVisibilityCommand,
+    DeleteMessageBatchCommand,
     DeleteMessageCommand,
     Message,
     ReceiveMessageCommand,
@@ -23,10 +9,28 @@ import {
     ReceiveMessageResult,
     SQSClient,
 } from "@aws-sdk/client-sqs"
+import { EventEmitter } from "events"
+import { autoBind } from "./bind"
+import { SQSError, TimeoutError } from "./errors"
+import { ConsumerOptions, Events, PendingMessage, PendingMessages, TimeoutResponse } from "./types"
+import {
+    createTimeout,
+    filterOutByGroupId,
+    getMessagesByGroupId,
+    getNextPendingMessage,
+    getNextPendingMessageBatch,
+    groupMessageBatchByArrivedTime,
+    isConnectionError,
+    isFifo,
+    isPollingReadyForNextReceive,
+    removeMessagesFromPending,
+    toSQSError,
+} from "./utils"
 
 export class Consumer extends EventEmitter {
     private readonly queueUrl: string
     private readonly handleMessage: (message: Message) => Promise<void>
+    private readonly handleMessageBatch: (messages: Message[]) => Promise<void>
     private readonly handleMessageTimeout: number | null
     private readonly attributeNames: string[]
     private readonly messageAttributeNames: string[]
@@ -46,8 +50,12 @@ export class Consumer extends EventEmitter {
 
     constructor(options: ConsumerOptions) {
         super()
+        if (!options.handleMessage && !options.handleMessageBatch) {
+            throw new Error("Missing required handleMessage or handleMessageBatch function.")
+        }
         this.queueUrl = options.queueUrl
         this.handleMessage = options.handleMessage
+        this.handleMessageBatch = options.handleMessageBatch
         this.handleMessageTimeout = options.handleMessageTimeout
         this.attributeNames = Array.from(new Set([...(options.attributeNames || []), "MessageGroupId"]))
         this.messageAttributeNames = options.messageAttributeNames || ["All"]
@@ -175,7 +183,11 @@ export class Consumer extends EventEmitter {
 
         this.emitPendingStatus()
 
-        this.processNextPendingMessage()
+        if (this.isBatchProcessing()) {
+            this.processBatchPendingMessages()
+        } else {
+            this.processNextPendingMessage()
+        }
     }
 
     private processNextPendingMessage(): void {
@@ -227,6 +239,59 @@ export class Consumer extends EventEmitter {
         }
     }
 
+    private processBatchPendingMessages(): void {
+        const messages: PendingMessage[] = getNextPendingMessageBatch(this.pendingMessages)
+        if (!messages.length) {
+            return
+        }
+        const now = Date.now()
+        for (const message of messages) {
+            message.processing = true
+            message.processingStartedAt = now
+        }
+
+        // TODO check what will async / await will do with the setImmediate
+        this.processMessageBatch(messages).then(() => {
+            setImmediate(this.processBatchPendingMessages)
+
+            if (this.pollingStopped && isPollingReadyForNextReceive(this.batchSize, this.pendingMessages.length)) {
+                setImmediate(this.pollSqs)
+            }
+        })
+
+        setImmediate(this.processBatchPendingMessages)
+    }
+
+    private async processMessageBatch(messages: PendingMessages): Promise<void> {
+        const sqsMessages = messages.map((m) => m.sqsMessage)
+
+        this.emit("message_batch_received", sqsMessages)
+
+        try {
+            await this.executeBatchHandler(sqsMessages)
+
+            const processedTime = Date.now()
+
+            this.emit("message_batch_processed", sqsMessages, {
+                // TODO log the batch
+                // arrivedAt: message.arrivedAt,
+                // processingStartedAt: message.processingStartedAt,
+                // processedAt: processedTime,
+                // waitingTime: message.processingStartedAt - message.arrivedAt,
+                // processingTime: processedTime - message.processingStartedAt,
+                // totalTime: processedTime - message.arrivedAt,
+            })
+
+            await this.deleteMessages(sqsMessages)
+        } catch (err) {
+            this.emitError(err, sqsMessages)
+
+            if (this.terminateVisibilityTimeout) {
+                await this.changeVisibilityTimeoutBatch(sqsMessages, 0)
+            }
+        }
+    }
+
     private async receiveMessage(params: ReceiveMessageRequest): Promise<ReceiveMessageResult> {
         try {
             return await this.sqs.send(new ReceiveMessageCommand(params))
@@ -243,16 +308,32 @@ export class Consumer extends EventEmitter {
 
         try {
             await this.sqs.send(new DeleteMessageCommand(deleteParams))
-
-            // delete from pending messages
-            this.pendingMessages = this.pendingMessages.filter((m) => m.sqsMessage.MessageId !== message.MessageId)
-            this.emitPendingStatus()
         } catch (err) {
+            throw toSQSError(err, `SQS delete message failed: ${err.message}`)
+        } finally {
             // delete from pending messages
             this.pendingMessages = this.pendingMessages.filter((m) => m.sqsMessage.MessageId !== message.MessageId)
             this.emitPendingStatus()
+        }
+    }
 
+    private async deleteMessages(messages: Message[]) {
+        const deleteParams = {
+            QueueUrl: this.queueUrl,
+            Entries: messages.map((message) => ({
+                Id: message.MessageId as string,
+                ReceiptHandle: message.ReceiptHandle as string,
+            })),
+        }
+
+        try {
+            await this.sqs.send(new DeleteMessageBatchCommand(deleteParams))
+        } catch (err) {
             throw toSQSError(err, `SQS delete message failed: ${err.message}`)
+        } finally {
+            // delete from pending messages
+            this.pendingMessages = removeMessagesFromPending(this.pendingMessages, messages)
+            this.emitPendingStatus()
         }
     }
 
@@ -293,6 +374,34 @@ export class Consumer extends EventEmitter {
         }
     }
 
+    private async executeBatchHandler(messages: Message[]) {
+        let timeout: TimeoutResponse
+        try {
+            if (this.handleMessageTimeout) {
+                timeout = createTimeout(this.handleMessageTimeout)
+                await Promise.race([this.handleMessageBatch(messages), timeout.pending])
+            } else {
+                await this.handleMessageBatch(messages)
+            }
+        } catch (err) {
+            if (err instanceof TimeoutError) {
+                err.message = `Message handler timed out after ${this.handleMessageTimeout}ms: Operation timed out.`
+            } else {
+                err.message = `Unexpected message handler failure: ${err.message}`
+            }
+
+            this.pendingMessages = removeMessagesFromPending(this.pendingMessages, messages)
+
+            this.emitPendingStatus()
+
+            throw err
+        } finally {
+            if (timeout && timeout.timeout) {
+                clearTimeout(timeout.timeout)
+            }
+        }
+    }
+
     private async changeVisibilityTimeout(message: Message, timeout: number) {
         try {
             return await this.sqs.send(
@@ -314,14 +423,22 @@ export class Consumer extends EventEmitter {
         })
     }
 
-    private emitError(err: Error, message: Message): void {
+    private emitError(err: Error, message: Message): void
+    private emitError(err: Error, messages: Message[]): void
+    private emitError(err: Error, messageOrMessages: Message | Message[]): void {
         if (err.name === SQSError.name) {
-            this.emit("error", err, message)
-        } else if (err instanceof TimeoutError) {
-            this.emit("timeout_error", err, message)
-        } else {
-            this.emit("processing_error", err, message)
+            this.emit("error", err, messageOrMessages)
+            return
         }
+        if (err instanceof TimeoutError) {
+            this.emit("timeout_error", err, messageOrMessages)
+            return
+        }
+        if (Array.isArray(messageOrMessages)) {
+            this.emit("batch_processing_error", err, messageOrMessages)
+            return
+        }
+        this.emit("processing_error", err, messageOrMessages)
     }
 
     private async changeVisibilityTimeoutOfBatch(batch: PendingMessages, timeout: number, elapsedSeconds: number) {
@@ -365,5 +482,9 @@ export class Consumer extends EventEmitter {
 
     private stopHeartbeat(): void {
         clearInterval(this.heartbeatTimeout)
+    }
+
+    private isBatchProcessing(): boolean {
+        return typeof this.handleMessageBatch === "function"
     }
 }
