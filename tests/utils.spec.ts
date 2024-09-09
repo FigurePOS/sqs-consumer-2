@@ -1,12 +1,15 @@
 import { assert, expect } from "chai"
+import { PendingMessage } from "../src/types"
 import {
     filterOutByGroupId,
     getNextPendingMessage,
+    getNextPendingMessageBatch,
     groupMessageBatchByArrivedTime,
+    groupMessageBatchByGroupId,
     isFifo,
     isPollingReadyForNextReceive,
+    removeMessagesFromPending,
 } from "../src/utils"
-import { PendingMessage } from "../src/types"
 
 describe("getNextPendingMessage", () => {
     it("return null given empty message batch", () => {
@@ -52,6 +55,29 @@ describe("getNextPendingMessage", () => {
     })
 })
 
+describe("getNextPendingMessageBatch", () => {
+    it("should return empty list given empty list", () => {
+        const batch = []
+
+        expect(getNextPendingMessageBatch(batch)).to.be.empty
+    })
+
+    it("should return the first group of messages that are not processing", () => {
+        const batch = [
+            createMessage("1", "1", true),
+            createMessage("2", "1", false),
+            createMessage("3", "1", true),
+            createMessage("4", "2", false),
+            createMessage("5", "2", false),
+            createMessage("6", "4", false),
+            createMessage("7", "1", false),
+        ]
+        const result = [createMessage("2", "1", false), createMessage("7", "1", false)]
+
+        expect(getNextPendingMessageBatch(batch)).to.deep.equal(result)
+    })
+})
+
 describe("groupMessageBatchByArrivedTime", () => {
     it("return empty list given empty list", () => {
         const batch = []
@@ -76,6 +102,59 @@ describe("groupMessageBatchByArrivedTime", () => {
         ]
 
         expect(groupMessageBatchByArrivedTime(batch)).to.deep.equal(result)
+    })
+})
+
+describe("groupMessageBatchByGroupId", () => {
+    it("return empty list given empty list", () => {
+        const batch = []
+
+        expect(groupMessageBatchByGroupId(batch)).to.be.empty
+    })
+
+    it("return grouped messages by the same groupId", () => {
+        const batch = [
+            createMessage("1", "1", true),
+            createMessage("2", "1", false),
+            createMessage("3", "1", true),
+            createMessage("4", "2", false),
+            createMessage("5", "2", false),
+            createMessage("6", "4", false),
+            createMessage("7", "1", false),
+        ]
+        const result = [
+            [
+                createMessage("1", "1", true),
+                createMessage("2", "1", false),
+                createMessage("3", "1", true),
+                createMessage("7", "1", false),
+            ],
+            [createMessage("4", "2", false), createMessage("5", "2", false)],
+            [createMessage("6", "4", false)],
+        ]
+
+        expect(groupMessageBatchByGroupId(batch)).to.deep.equal(result)
+    })
+
+    it("return grouped messages by the same groupId and messages without groupId", () => {
+        const batch = [
+            createMessage("1", "1", true),
+            createMessage("2", "1", false),
+            createMessage("3", "1", true),
+            createMessage("4", "2", false),
+            createMessage("5", "2", false),
+            createMessage("6", "4", false),
+            createMessage("7", null, false),
+            createMessage("8", null, false),
+        ]
+        const result = [
+            [createMessage("1", "1", true), createMessage("2", "1", false), createMessage("3", "1", true)],
+            [createMessage("4", "2", false), createMessage("5", "2", false)],
+            [createMessage("6", "4", false)],
+            [createMessage("7", null, false), createMessage("8", null, false)],
+        ]
+
+        expect(groupMessageBatchByGroupId(batch)).to.deep.equal(result)
     })
 })
 
@@ -194,6 +273,38 @@ describe("isFifo", () => {
     it("returns false if the queue url is null", () => {
         // @ts-ignore
         expect(isFifo(null)).to.be.false
+    })
+})
+
+describe("removeMessagesFromPending", () => {
+    it("should remove all messages from the batch", () => {
+        const batch = [
+            createMessage("1", "1", true, 1),
+            createMessage("2", "2", false, 2),
+            createMessage("3", "3", true, 3),
+        ]
+        const messages = [
+            { Attributes: { MessageGroupId: "1" }, MessageId: "1" },
+            { Attributes: { MessageGroupId: "1" }, MessageId: "2" },
+            { Attributes: { MessageGroupId: "1" }, MessageId: "3" },
+        ]
+
+        expect(removeMessagesFromPending(batch, messages)).to.be.empty
+    })
+
+    it("should remove only defined messages from the batch", () => {
+        const batch = [
+            createMessage("1", "1", true, 1),
+            createMessage("2", "2", false, 2),
+            createMessage("3", "3", true, 3),
+        ]
+        const messages = [
+            { Attributes: { MessageGroupId: "1" }, MessageId: "1" },
+            { Attributes: { MessageGroupId: "1" }, MessageId: "3" },
+        ]
+        const result = [createMessage("2", "2", false, 2)]
+
+        expect(removeMessagesFromPending(batch, messages)).to.deep.equal(result)
     })
 })
 

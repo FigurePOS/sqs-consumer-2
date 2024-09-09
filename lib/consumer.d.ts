@@ -4,6 +4,7 @@ import { ConsumerOptions, Events } from "./types";
 export declare class Consumer extends EventEmitter {
     private readonly queueUrl;
     private readonly handleMessage;
+    private readonly handleMessageBatch;
     private readonly handleMessageTimeout;
     private readonly attributeNames;
     private readonly messageAttributeNames;
@@ -32,9 +33,13 @@ export declare class Consumer extends EventEmitter {
     private addToPendingMessages;
     private processNextPendingMessage;
     private processMessage;
+    private processBatchPendingMessages;
+    private processMessageBatch;
     private receiveMessage;
     private deleteMessage;
+    private deleteMessages;
     private executeHandler;
+    private executeBatchHandler;
     private changeVisibilityTimeout;
     private emitPendingStatus;
     private emitError;
@@ -42,4 +47,5 @@ export declare class Consumer extends EventEmitter {
     private changeVisibilityTimeoutBatch;
     private startHeartbeat;
     private stopHeartbeat;
+    private isBatchProcessing;
 }
