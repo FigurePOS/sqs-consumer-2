@@ -367,13 +367,13 @@ describe("Consumer", () => {
                 sqs,
                 authenticationErrorTimeout: 20,
                 pollingWaitTimeMs: 100,
+                batchSize: 11,
             })
 
             consumer.start()
             await clock.tickAsync(POLLING_TIMEOUT)
             consumer.stop()
 
-            // TODO fix this
             sandbox.assert.calledTwice(sqs.send.withArgs(sinon.match.instanceOf(ReceiveMessageCommand)))
         })
 
@@ -716,7 +716,7 @@ describe("Consumer", () => {
             await pEvent(consumer, "processing_error")
             consumer.stop()
 
-            sandbox.assert.notCalled(sqs.send.withArgs(sinon.match.instanceOf(ChangeMessageVisibilityCommand)))
+            sandbox.assert.notCalled(sqs.send.withArgs(sinon.match.instanceOf(ChangeMessageVisibilityBatchCommand)))
         })
 
         it("fires error event when failed to terminate visibility timeout on processing error", async () => {
@@ -772,9 +772,9 @@ describe("Consumer", () => {
                     sinon.match.has("input", {
                         QueueUrl: "some-queue-url.fifo",
                         Entries: [
-                            { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 70 },
-                            { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 70 },
-                            { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 70 },
+                            { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 40 },
+                            { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 40 },
+                            { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 40 },
                         ],
                     }),
                 ),
@@ -785,9 +785,9 @@ describe("Consumer", () => {
                     sinon.match.has("input", {
                         QueueUrl: "some-queue-url.fifo",
                         Entries: [
-                            { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 100 },
-                            { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 100 },
-                            { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 100 },
+                            { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 40 },
+                            { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 40 },
+                            { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 40 },
                         ],
                     }),
                 ),
@@ -989,6 +989,7 @@ describe("Consumer", () => {
             sandbox.assert.calledTwice(handleMessageBatch)
         })
 
+        // TODO talk with Honza about the removing group ids in batch
         it("removes the messages with same group id if the first handling fails", async () => {
             sqs.send = overrideResolveStub(ReceiveMessageCommand, {
                 Messages: [
@@ -1162,19 +1163,11 @@ describe("Consumer", () => {
             )
         })
 
-        // TODO rewrite everything below for batch processing
         it("passes in the correct visibility timeout for long running handler functions", async () => {
-            sqs.send = overrideResolveStub(ReceiveMessageCommand, {
-                Messages: [
-                    { MessageId: "1", ReceiptHandle: "receipt-handle-1", Body: "body-1" },
-                    { MessageId: "2", ReceiptHandle: "receipt-handle-2", Body: "body-2" },
-                    { MessageId: "3", ReceiptHandle: "receipt-handle-3", Body: "body-3" },
-                ],
-            })
             consumer = new Consumer({
                 queueUrl: "some-queue-url.fifo",
                 region: "some-region",
-                handleMessage: () => new Promise((resolve) => setTimeout(resolve, 75000)),
+                handleMessageBatch: () => new Promise((resolve) => setTimeout(resolve, 75000)),
                 batchSize: 3,
                 sqs,
                 visibilityTimeout: 40,
@@ -1192,9 +1185,9 @@ describe("Consumer", () => {
                     sinon.match.has("input", {
                         QueueUrl: "some-queue-url.fifo",
                         Entries: [
-                            { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 70 },
-                            { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 70 },
-                            { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 70 },
+                            { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 40 },
+                            { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 40 },
+                            { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 40 },
                         ],
                     }),
                 ),
@@ -1205,9 +1198,9 @@ describe("Consumer", () => {
                     sinon.match.has("input", {
                         QueueUrl: "some-queue-url.fifo",
                         Entries: [
-                            { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 100 },
-                            { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 100 },
-                            { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 100 },
+                            { Id: "1", ReceiptHandle: "receipt-handle-1", VisibilityTimeout: 40 },
+                            { Id: "2", ReceiptHandle: "receipt-handle-2", VisibilityTimeout: 40 },
+                            { Id: "3", ReceiptHandle: "receipt-handle-3", VisibilityTimeout: 40 },
                         ],
                     }),
                 ),
