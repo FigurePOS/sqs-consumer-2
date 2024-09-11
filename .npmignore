@@ -1,0 +1,15 @@
+node_modules
+src
+.github
+.vscode
+.eslintignore
+.eslintrc.js
+.gitignore
+.npmignore
+.npmrc
+.prettierignore
+.prettierrc
+CODEOWNERS
+jest.config.js
+tsconfig.json
+.release-it.json
