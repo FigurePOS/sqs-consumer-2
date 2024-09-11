@@ -989,7 +989,6 @@ describe("Consumer", () => {
             sandbox.assert.calledTwice(handleMessageBatch)
         })
 
-        // TODO talk with Honza about the removing group ids in batch
         it("removes the messages with same group id if the first handling fails", async () => {
             sqs.send = overrideResolveStub(ReceiveMessageCommand, {
                 Messages: [
