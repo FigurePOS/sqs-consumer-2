@@ -268,15 +268,17 @@ export class Consumer extends EventEmitter {
         this.emit("message_batch_received", sqsMessages)
 
         try {
+            const processingStart = Date.now()
+
             await this.executeBatchHandler(sqsMessages)
 
             const processedTime = Date.now()
 
             this.emit("message_batch_processed", sqsMessages, {
+                processingStartedAt: processingStart,
+                processedAt: processedTime,
                 // TODO log the batch
                 // arrivedAt: message.arrivedAt,
-                // processingStartedAt: message.processingStartedAt,
-                // processedAt: processedTime,
                 // waitingTime: message.processingStartedAt - message.arrivedAt,
                 // processingTime: processedTime - message.processingStartedAt,
                 // totalTime: processedTime - message.arrivedAt,
@@ -389,8 +391,14 @@ export class Consumer extends EventEmitter {
             } else {
                 err.message = `Unexpected message handler failure: ${err.message}`
             }
+            const [message] = messages
 
-            this.pendingMessages = removeMessagesFromPending(this.pendingMessages, messages)
+            // find all messages with the same groupId
+            const pendingMessages = getMessagesByGroupId(this.pendingMessages, message)
+            // processing has failed, remove all following messages with the same groupId
+            this.pendingMessages = filterOutByGroupId(this.pendingMessages, message)
+
+            await this.changeVisibilityTimeoutOfBatch(pendingMessages, this.visibilityTimeout, 0)
 
             this.emitPendingStatus()
 
