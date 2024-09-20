@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+
+jobs:
+  build_test:
+    runs-on: blacksmith-2vcpu-ubuntu-2204
+    steps:
+      - uses: actions/checkout@v4.1.0
+
+      - name: Set Up Node.js
+        uses: FigurePOS/github-actions/.github/actions/setup-node@v1
+
+      - name: Install Dependencies
+        uses: FigurePOS/github-actions/.github/actions/install-dependencies@v1
+
+      - run: yarn lint
+
+      - run: yarn typecheck
+
+      - run: yarn test

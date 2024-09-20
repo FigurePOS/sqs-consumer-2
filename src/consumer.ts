@@ -4,6 +4,7 @@ import {
     DeleteMessageBatchCommand,
     DeleteMessageCommand,
     Message,
+    QueueAttributeName,
     ReceiveMessageCommand,
     ReceiveMessageRequest,
     ReceiveMessageResult,
@@ -130,9 +131,9 @@ export class Consumer extends EventEmitter {
 
         this.pollingStopped = false
 
-        const receiveParams = {
+        const receiveParams: ReceiveMessageRequest = {
             QueueUrl: this.queueUrl,
-            AttributeNames: this.attributeNames,
+            AttributeNames: this.attributeNames as QueueAttributeName[],
             MessageAttributeNames: this.messageAttributeNames,
             MaxNumberOfMessages: Math.min(10, this.batchSize),
             WaitTimeSeconds: this.waitTimeSeconds,
