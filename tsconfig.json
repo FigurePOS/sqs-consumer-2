@@ -1,20 +1,15 @@
 {
-  "compilerOptions": {
-    "lib": ["ESNext"],
-    "target": "ES6",
-    "module": "commonjs",
-    "sourceMap": true,
-    "moduleResolution": "node",
-    "declaration": true,
-    "rootDir": "./src",
-    "outDir": "./lib",
-    "skipLibCheck": true
-  },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "**/*.spec.ts"
-  ]
+    "compilerOptions": {
+        "lib": ["ESNext"],
+        "target": "ES6",
+        "module": "commonjs",
+        "sourceMap": true,
+        "moduleResolution": "node",
+        "declaration": true,
+        "rootDir": "./src",
+        "outDir": "./lib",
+        "skipLibCheck": true
+    },
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "**/*.spec.ts"]
 }

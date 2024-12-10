@@ -16,13 +16,16 @@ export const run = () => {
         queueUrl: queueUrl,
         handleMessage: (msg) =>
             new Promise((res, rej) => {
-                setTimeout(() => {
-                    if (Math.random() * 100 < failurePercentage) {
-                        rej({ message: "error" })
-                    } else {
-                        res()
-                    }
-                }, random(processingTimeFrom, processingTimeTo) * 1000)
+                setTimeout(
+                    () => {
+                        if (Math.random() * 100 < failurePercentage) {
+                            rej({ message: "error" })
+                        } else {
+                            res()
+                        }
+                    },
+                    random(processingTimeFrom, processingTimeTo) * 1000,
+                )
             }),
         batchSize: batchSize,
         sqs: new AWS.SQS({

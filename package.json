@@ -10,6 +10,8 @@
         "posttest": "yarn run lint",
         "prepublish": "yarn run build",
         "pretest": "yarn run build",
+        "prettier:check": "./node_modules/.bin/prettier --check '**/*.js' '**/*.json' '**/*.ts'",
+        "prettier:fix": "./node_modules/.bin/prettier --write '**/*.js' '**/*.json' '**/*.ts'",
         "test": "mocha --recursive --full-trace --exit",
         "release": "yarn build && yarn release-it",
         "watch": "tsc --watch"
