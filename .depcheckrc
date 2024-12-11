@@ -1,0 +1,25 @@
+ignores:
+  - "@figuredev/prettier-config"
+  - "@figuredev/eslint-config-node"
+  - "@release-it/*"
+  - "@types/jest"
+  - "@types/node"
+  - "@typescript-eslint/*"
+  - depcheck
+  - eslint
+  - eslint-config-prettier
+  - license-compliance
+  - mocha
+  - prettier
+  - release-it
+  - tslint
+  - ts-node
+  - typescript
+
+ignore-patterns:
+  - scripts
+
+specials:
+  - eslint
+  - mocha
+  - prettier

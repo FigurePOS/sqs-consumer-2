@@ -3,52 +3,51 @@
     "version": "5.9.0",
     "description": "SQS Consumer",
     "scripts": {
-        "build": "yarn run clean && tsc",
+        "build": "yarn clean && ./node_modules/.bin/tsc",
+        "check:deps": "./node_modules/.bin/depcheck",
+        "check:licenses": "./node_modules/.bin/license-compliance --production --allow=\"0BSD;Apache-2.0;BSD-1-Clause;BSD-2-Clause;BSD-3-Clause;ISC;MIT;MPL-1.0;MPL-1.1;MPL-2.0;Unlicense\" --report=detailed",
+        "ci:test": "yarn tsc && yarn lint && yarn test",
         "clean": "rm -fr lib/*",
-        "lint": "eslint .",
-        "lint:fix": "eslint . --fix",
-        "posttest": "yarn run lint",
-        "prepublish": "yarn run build",
-        "pretest": "yarn run build",
+        "lint": "./node_modules/.bin/eslint '*/**/*.{js,json,ts}'",
+        "lint:fix": "./node_modules/.bin/eslint '*/**/*.{js,json,ts}' --quiet --fix",
+        "posttest": "yarn lint",
+        "prepublish": "yarn build",
+        "pretest": "yarn build",
         "prettier:check": "./node_modules/.bin/prettier --check '**/*.js' '**/*.json' '**/*.ts'",
         "prettier:fix": "./node_modules/.bin/prettier --write '**/*.js' '**/*.json' '**/*.ts'",
-        "test": "mocha --recursive --full-trace --exit",
         "release": "yarn build && yarn release-it",
+        "test": "mocha --recursive --full-trace --exit",
+        "tsc": "./node_modules/.bin/tsc --noEmit",
         "watch": "tsc --watch"
     },
     "repository": {
         "type": "git",
         "url": "https://github.com/FigurePOS/sqs-consumer-2.git"
     },
-    "homepage": "https://github.com/FigurePOS/sqs-consumer-2",
-    "keywords": [
-        "sqs",
-        "queue",
-        "consumer"
-    ],
     "license": "Apache-2.0",
     "devDependencies": {
         "@aws-sdk/client-sqs": "3.391.0",
         "@figuredev/eslint-config-node": "^2.0.1",
         "@figuredev/prettier-config": "^2.1.0",
         "@release-it/conventional-changelog": "^9.0.3",
+        "@smithy/smithy-client": "^3.5.0",
         "@types/chai": "^4.2.11",
-        "@types/debug": "^4.1.5",
         "@types/mocha": "^7.0.2",
         "@types/node": "^14.0.13",
         "@types/sinon": "^9.0.4",
+        "@typescript-eslint/eslint-plugin": "^5.59.11",
+        "@typescript-eslint/parser": "^5.59.11",
         "chai": "^4.2.0",
-        "eslint": "^9.16.0",
+        "depcheck": "^1.4.7",
+        "eslint": "^8.42.0",
+        "license-compliance": "^3.0.1",
         "mocha": "^8.0.1",
         "p-event": "^4.2.0",
         "prettier": "^3.4.2",
         "release-it": "^17.10.0",
         "sinon": "^9.0.2",
-        "ts-node": "^8.10.2",
-        "typescript": "^3.9.5"
-    },
-    "dependencies": {
-        "debug": "^4.1.1"
+        "ts-node": "^10.9.2",
+        "typescript": "^5.7.2"
     },
     "peerDependencies": {
         "@aws-sdk/client-sqs": "^3.391.0"
