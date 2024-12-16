@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && 'pr-' || 'branch-' }}${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  packages: read
+
+jobs:
+  check:
+    runs-on: blacksmith-2vcpu-ubuntu-2204
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set Up Node.js
+        uses: FigurePOS/github-actions/.github/actions/node-setup@v2
+
+      - name: Install Dependencies
+        uses: FigurePOS/github-actions/.github/actions/node-yarn-install@v2
+
+      - name: License Compliance Check
+        uses: FigurePOS/github-actions/.github/actions/node-license-compliance@v2
+
+      - name: Dependencies Check
+        uses: FigurePOS/github-actions/.github/actions/node-dependency-check@v2
+  
+  test:
+    runs-on: blacksmith-2vcpu-ubuntu-2204
+    steps:
+      - uses: actions/checkout@v4.1.0
+
+      - name: Set Up Node.js
+        uses: FigurePOS/github-actions/.github/actions/setup-node@v1
+
+      - name: Install Dependencies
+        uses: FigurePOS/github-actions/.github/actions/install-dependencies@v1
+
+      - run: yarn ci:test
+
+  # release:
+  #   if: github.ref == 'refs/heads/master'
+  #   needs: 
+  #     - check
+  #     - test
+  #   runs-on: blacksmith-2vcpu-ubuntu-2204
+  #   permissions:
+  #     contents: write
+  #     packages: write
+  #   steps:
+  #     - uses: actions/checkout@v4
+      
+  #     - name: Set Up Node.js
+  #       uses: FigurePOS/github-actions/.github/actions/node-setup@v2
+
+  #     - name: Install Dependencies
+  #       uses: FigurePOS/github-actions/.github/actions/node-yarn-install@v2
+        
+  #     - name: Configure Git
+  #       uses: FigurePOS/github-actions/.github/actions/git-configure-user@v1
+          
+  #     - name: Release
+  #       uses: JoshuaKGoldberg/release-it-action@v0.2.3
+  #       env:
+  #         NPM_TOKEN: ${{ github.token }}
+  #         GITHUB_TOKEN: ${{ github.token }}
+
+  #     - name: Send Slack Notification About Failure
+  #       if: failure() && github.ref == 'refs/heads/master'
+  #       uses: FigurePOS/github-actions/.github/actions/buddy-notify-fail-service@v1
+  #       with:
+  #         job-name: release
+  #         service-name: fgr-lib-backend
+  #         trigger-url: ${{ secrets.BUDDY_TRIGGER_URL }}
