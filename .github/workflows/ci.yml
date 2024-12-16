@@ -44,37 +44,37 @@ jobs:
 
       - run: yarn ci:test
 
-  release:
-    if: github.ref == 'refs/heads/master'
-    needs: 
-      - check
-      - test
-    runs-on: blacksmith-2vcpu-ubuntu-2204
-    permissions:
-      contents: write
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
+  # release:
+  #   if: github.ref == 'refs/heads/master'
+  #   needs: 
+  #     - check
+  #     - test
+  #   runs-on: blacksmith-2vcpu-ubuntu-2204
+  #   permissions:
+  #     contents: write
+  #     packages: write
+  #   steps:
+  #     - uses: actions/checkout@v4
       
-      - name: Set Up Node.js
-        uses: FigurePOS/github-actions/.github/actions/node-setup@v2
+  #     - name: Set Up Node.js
+  #       uses: FigurePOS/github-actions/.github/actions/node-setup@v2
 
-      - name: Install Dependencies
-        uses: FigurePOS/github-actions/.github/actions/node-yarn-install@v2
+  #     - name: Install Dependencies
+  #       uses: FigurePOS/github-actions/.github/actions/node-yarn-install@v2
         
-      - name: Configure Git
-        uses: FigurePOS/github-actions/.github/actions/git-configure-user@v1
+  #     - name: Configure Git
+  #       uses: FigurePOS/github-actions/.github/actions/git-configure-user@v1
           
-      - name: Release
-        uses: JoshuaKGoldberg/release-it-action@v0.2.3
-        env:
-          NPM_TOKEN: ${{ github.token }}
-          GITHUB_TOKEN: ${{ github.token }}
+  #     - name: Release
+  #       uses: JoshuaKGoldberg/release-it-action@v0.2.3
+  #       env:
+  #         NPM_TOKEN: ${{ github.token }}
+  #         GITHUB_TOKEN: ${{ github.token }}
 
-      - name: Send Slack Notification About Failure
-        if: failure() && github.ref == 'refs/heads/master'
-        uses: FigurePOS/github-actions/.github/actions/buddy-notify-fail-service@v1
-        with:
-          job-name: release
-          service-name: fgr-lib-backend
-          trigger-url: ${{ secrets.BUDDY_TRIGGER_URL }}
+  #     - name: Send Slack Notification About Failure
+  #       if: failure() && github.ref == 'refs/heads/master'
+  #       uses: FigurePOS/github-actions/.github/actions/buddy-notify-fail-service@v1
+  #       with:
+  #         job-name: release
+  #         service-name: fgr-lib-backend
+  #         trigger-url: ${{ secrets.BUDDY_TRIGGER_URL }}
