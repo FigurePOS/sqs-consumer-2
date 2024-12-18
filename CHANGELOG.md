@@ -1,5 +1,12 @@
 
 
+## [5.10.0](https://github.com/FigurePOS/sqs-consumer-2/compare/v5.9.0...v5.10.0) (2024-12-18)
+
+### Chores
+
+* use github actions FGR3-4059 ([#10](https://github.com/FigurePOS/sqs-consumer-2/issues/10)) ([6a8f392](https://github.com/FigurePOS/sqs-consumer-2/commit/6a8f392fc4700bd4cfd332336c17b58410532ea7))
+* use npm instead of yarn FGR3-562 ([60b8822](https://github.com/FigurePOS/sqs-consumer-2/commit/60b88226690216647642faff330ada8d2c52c4eb))
+
 ## [5.9.0](https://github.com/FigurePOS/sqs-consumer-2/compare/v5.8.0...v5.9.0) (2024-09-11)
 
 
