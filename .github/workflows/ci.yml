@@ -23,7 +23,7 @@ jobs:
         uses: FigurePOS/github-actions/.github/actions/node-setup@v2
 
       - name: Install Dependencies
-        uses: FigurePOS/github-actions/.github/actions/node-yarn-install@v2
+        uses: FigurePOS/github-actions/.github/actions/node-npm-install@v2
 
       - name: License Compliance Check
         uses: FigurePOS/github-actions/.github/actions/node-license-compliance@v2
@@ -37,12 +37,12 @@ jobs:
       - uses: actions/checkout@v4.1.0
 
       - name: Set Up Node.js
-        uses: FigurePOS/github-actions/.github/actions/setup-node@v1
+        uses: FigurePOS/github-actions/.github/actions/node-setup@v2
 
       - name: Install Dependencies
-        uses: FigurePOS/github-actions/.github/actions/install-dependencies@v1
+        uses: FigurePOS/github-actions/.github/actions/node-npm-install@v2
 
-      - run: yarn ci:test
+      - run: npm run ci:test
 
   # release:
   #   if: github.ref == 'refs/heads/master'
@@ -60,10 +60,10 @@ jobs:
   #       uses: FigurePOS/github-actions/.github/actions/node-setup@v2
 
   #     - name: Install Dependencies
-  #       uses: FigurePOS/github-actions/.github/actions/node-yarn-install@v2
+  #       uses: FigurePOS/github-actions/.github/actions/node-npm-install@v2
         
   #     - name: Configure Git
-  #       uses: FigurePOS/github-actions/.github/actions/git-configure-user@v1
+  #       uses: FigurePOS/github-actions/.github/actions/git-configure-user@v2
           
   #     - name: Release
   #       uses: JoshuaKGoldberg/release-it-action@v0.2.3
@@ -73,7 +73,7 @@ jobs:
 
   #     - name: Send Slack Notification About Failure
   #       if: failure() && github.ref == 'refs/heads/master'
-  #       uses: FigurePOS/github-actions/.github/actions/buddy-notify-fail-service@v1
+  #       uses: FigurePOS/github-actions/.github/actions/buddy-notify-fail-service@v2
   #       with:
   #         job-name: release
   #         service-name: fgr-lib-backend
