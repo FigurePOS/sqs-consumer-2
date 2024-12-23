@@ -26,10 +26,12 @@ jobs:
         uses: FigurePOS/github-actions/.github/actions/node-npm-install@v2
 
       - name: License Compliance Check
-        uses: FigurePOS/github-actions/.github/actions/node-license-compliance@v2
+        run: npm run check:licenses
+        shell: bash
 
       - name: Dependencies Check
-        uses: FigurePOS/github-actions/.github/actions/node-dependency-check@v2
+        run: npm run check:deps
+        shell: bash
   
   test:
     runs-on: blacksmith-2vcpu-ubuntu-2204
