@@ -1,5 +1,20 @@
 
 
+## [5.11.0](https://github.com/FigurePOS/sqs-consumer-2/compare/v5.9.0...v5.11.0) (2024-12-23)
+
+### Features
+
+* custom function to process message batch ([#21](https://github.com/FigurePOS/sqs-consumer-2/issues/21)) ([2845620](https://github.com/FigurePOS/sqs-consumer-2/commit/28456204c136dbec2d2bf0f00f5de00d5b6e6290))
+
+### Bug Fixes
+
+* **ci:** fix action names ([#20](https://github.com/FigurePOS/sqs-consumer-2/issues/20)) ([3a53b0e](https://github.com/FigurePOS/sqs-consumer-2/commit/3a53b0e51892cbbccaabc461b321ec4a4b7f21a1))
+
+### Chores
+
+* use github actions FGR3-4059 ([#10](https://github.com/FigurePOS/sqs-consumer-2/issues/10)) ([6a8f392](https://github.com/FigurePOS/sqs-consumer-2/commit/6a8f392fc4700bd4cfd332336c17b58410532ea7))
+* use npm instead of yarn FGR3-562 ([#19](https://github.com/FigurePOS/sqs-consumer-2/issues/19)) ([c0df3d8](https://github.com/FigurePOS/sqs-consumer-2/commit/c0df3d8dcb0e9ec0dcf6b74c471997d570a41a4f))
+
 ## [5.10.0](https://github.com/FigurePOS/sqs-consumer-2/compare/v5.9.0...v5.10.0) (2024-12-18)
 
 ### Chores
