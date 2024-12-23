@@ -76,6 +76,38 @@ describe("getNextPendingMessageBatch", () => {
 
         expect(getNextPendingMessageBatch(batch)).to.deep.equal(result)
     })
+
+    it("should return the first group of messages that are not processing and their id is even", () => {
+        const batch = [
+            createMessage("1", "1", true),
+            createMessage("2", "1", false),
+            createMessage("3", "1", true),
+            createMessage("4", "2", false),
+            createMessage("5", "2", false),
+            createMessage("6", "4", false),
+            createMessage("7", "1", false),
+        ]
+        const result = [createMessage("2", "1", false), createMessage("4", "2", false), createMessage("6", "4", false)]
+
+        expect(getNextPendingMessageBatch(batch, (batch) => {
+            return [batch.filter((message) => parseInt(message.sqsMessage.MessageId || "") % 2 === 0)]
+        })).to.deep.equal(result)
+    })
+
+    it("should return all non processing messages", () => {
+        const batch = [
+            createMessage("1", "1", true),
+            createMessage("2", "1", false),
+            createMessage("3", "1", true),
+            createMessage("4", "2", false),
+            createMessage("5", "2", false),
+            createMessage("6", "4", false),
+            createMessage("7", "1", false),
+        ]
+        const result = batch.filter((message) => !message.processing)
+
+        expect(getNextPendingMessageBatch(batch, null)).to.deep.equal(result)
+    })
 })
 
 describe("groupMessageBatchByArrivedTime", () => {

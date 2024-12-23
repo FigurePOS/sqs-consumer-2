@@ -23,6 +23,7 @@ export type ConsumerOptions = {
 
     handleMessage?: (message: Message) => Promise<void>
     handleMessageBatch?: (messages: Message[]) => Promise<void>
+    batchProcessingGroupFunction?: ((batch: PendingMessage[]) => PendingMessage[][]) | null
 }
 
 export interface Events {

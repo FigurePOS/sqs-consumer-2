@@ -43,6 +43,7 @@ export class Consumer extends EventEmitter {
     private readonly terminateVisibilityTimeout: boolean
     private readonly heartbeatInterval: number
     private readonly sqs: SQSClient
+    private readonly batchProcessingGroupFunction: ((batch: PendingMessage[]) => PendingMessage[][]) | null
     private pendingMessages: PendingMessages
 
     private stopped: boolean
@@ -241,7 +242,7 @@ export class Consumer extends EventEmitter {
     }
 
     private processBatchPendingMessages(): void {
-        const messages: PendingMessage[] = getNextPendingMessageBatch(this.pendingMessages)
+        const messages: PendingMessage[] = getNextPendingMessageBatch(this.pendingMessages, this.batchProcessingGroupFunction)
         if (!messages.length) {
             return
         }

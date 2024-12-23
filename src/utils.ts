@@ -17,8 +17,14 @@ export const getNextPendingMessage = (batch: PendingMessages): PendingMessage | 
  * @param batch
  * @todo think of using generic function to group by any key
  */
-export const getNextPendingMessageBatch = (batch: PendingMessages): PendingMessages => {
-    const [batchToProcess] = groupMessageBatchByGroupId(batch.filter((m) => !m.processing))
+export const getNextPendingMessageBatch = (
+    batch: PendingMessages, 
+    groupFn: ((batch: PendingMessages) => PendingMessage[][]) | null = groupMessageBatchByGroupId,
+): PendingMessages => {
+    if (!groupFn) {
+        return batch.filter((m) => !m.processing)
+    }
+    const [batchToProcess] = groupFn(batch.filter((m) => !m.processing))
     return batchToProcess || []
 }
 
