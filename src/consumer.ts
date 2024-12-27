@@ -44,6 +44,7 @@ export class Consumer extends EventEmitter {
     private readonly heartbeatInterval: number
     private readonly sqs: SQSClient
     private readonly batchProcessingGroupFunction: ((batch: PendingMessage[]) => PendingMessage[][]) | null
+    private readonly transformMessages: (messages: Message[]) => Message[]
     private pendingMessages: PendingMessages
 
     private stopped: boolean
@@ -58,6 +59,8 @@ export class Consumer extends EventEmitter {
         this.queueUrl = options.queueUrl
         this.handleMessage = options.handleMessage
         this.handleMessageBatch = options.handleMessageBatch
+        this.batchProcessingGroupFunction = options.batchProcessingGroupFunction
+        this.transformMessages = options.transformMessages
         this.handleMessageTimeout = options.handleMessageTimeout
         this.attributeNames = Array.from(new Set([...(options.attributeNames || []), "MessageGroupId"]))
         this.messageAttributeNames = options.messageAttributeNames || ["All"]
@@ -213,7 +216,7 @@ export class Consumer extends EventEmitter {
     }
 
     private async processMessage(message: PendingMessage): Promise<void> {
-        const sqsMsg = message.sqsMessage
+        const sqsMsg = this.transformMessages ? this.transformMessages([message.sqsMessage])[0] : message.sqsMessage
 
         this.emit("message_received", sqsMsg)
 
@@ -242,7 +245,10 @@ export class Consumer extends EventEmitter {
     }
 
     private processBatchPendingMessages(): void {
-        const messages: PendingMessage[] = getNextPendingMessageBatch(this.pendingMessages, this.batchProcessingGroupFunction)
+        const messages: PendingMessage[] = getNextPendingMessageBatch(
+            this.pendingMessages,
+            this.batchProcessingGroupFunction,
+        )
         if (!messages.length) {
             return
         }
@@ -265,7 +271,8 @@ export class Consumer extends EventEmitter {
     }
 
     private async processMessageBatch(messages: PendingMessages): Promise<void> {
-        const sqsMessages = messages.map((m) => m.sqsMessage)
+        const batch = messages.map((m) => m.sqsMessage)
+        const sqsMessages = this.transformMessages ? this.transformMessages(batch) : batch
 
         this.emit("message_batch_received", sqsMessages)
 
