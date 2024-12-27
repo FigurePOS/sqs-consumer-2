@@ -23,7 +23,15 @@ export type ConsumerOptions = {
 
     handleMessage?: (message: Message) => Promise<void>
     handleMessageBatch?: (messages: Message[]) => Promise<void>
+    /**
+     * Function to group messages in batch. If `null` the batch is returned as is.
+     */
     batchProcessingGroupFunction?: ((batch: PendingMessage[]) => PendingMessage[][]) | null
+
+    /**
+     * Function to transform messages before processing.
+     */
+    transformMessages?: (messages: Message[]) => Message[]
 }
 
 export interface Events {
