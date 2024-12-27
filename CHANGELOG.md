@@ -1,5 +1,11 @@
 
 
+## [5.12.0](https://github.com/FigurePOS/sqs-consumer-2/compare/v5.11.0...v5.12.0) (2024-12-27)
+
+### Features
+
+* message transform function FGR3-2923 ([#22](https://github.com/FigurePOS/sqs-consumer-2/issues/22)) ([0c80e84](https://github.com/FigurePOS/sqs-consumer-2/commit/0c80e84fccf7ff34d5d29e0c6c41f52e22c8e145))
+
 ## [5.11.0](https://github.com/FigurePOS/sqs-consumer-2/compare/v5.9.0...v5.11.0) (2024-12-23)
 
 ### Features
