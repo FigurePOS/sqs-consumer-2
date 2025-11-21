@@ -13,7 +13,14 @@ import {
 import { EventEmitter } from "events"
 import { autoBind } from "./bind"
 import { SQSError, TimeoutError } from "./errors"
-import { ConsumerOptions, Events, PendingMessage, PendingMessages, TimeoutResponse } from "./types"
+import {
+    BatchProcessingResult,
+    ConsumerOptions,
+    Events,
+    PendingMessage,
+    PendingMessages,
+    TimeoutResponse,
+} from "./types"
 import {
     createTimeout,
     filterOutByGroupId,
@@ -31,7 +38,7 @@ import {
 export class Consumer extends EventEmitter {
     private readonly queueUrl: string
     private readonly handleMessage: (message: Message) => Promise<void>
-    private readonly handleMessageBatch: (messages: Message[]) => Promise<void>
+    private readonly handleMessageBatch: (messages: Message[]) => Promise<BatchProcessingResult>
     private readonly handleMessageTimeout: number | null
     private readonly attributeNames: string[]
     private readonly messageAttributeNames: string[]
@@ -279,7 +286,7 @@ export class Consumer extends EventEmitter {
         try {
             const processingStart = Date.now()
 
-            await this.executeBatchHandler(sqsMessages)
+            const result = await this.executeBatchHandler(sqsMessages)
 
             const processedTime = Date.now()
 
@@ -292,8 +299,22 @@ export class Consumer extends EventEmitter {
                 // processingTime: processedTime - message.processingStartedAt,
                 // totalTime: processedTime - message.arrivedAt,
             })
-
-            await this.deleteMessages(sqsMessages)
+            const successful = result.successful.map((msg) => msg.MessageId)
+            await this.deleteMessages(sqsMessages.filter((m) => successful.includes(m.MessageId as string)))
+            if (result.failed.length) {
+                // this.emit("error", new Error("Some messages in the batch failed to process."), result.failed)
+                this.pendingMessages = this.pendingMessages.filter(
+                    (m) => !result.failed.map((fm) => fm.MessageId).includes(m.sqsMessage.MessageId),
+                )
+                if (this.terminateVisibilityTimeout) {
+                    await this.changeVisibilityTimeoutBatch(
+                        sqsMessages.filter((m) =>
+                            result.failed.map((fm) => fm.MessageId).includes(m.MessageId as string),
+                        ),
+                        0,
+                    )
+                }
+            }
         } catch (err) {
             this.emitError(err, sqsMessages)
 
@@ -385,14 +406,18 @@ export class Consumer extends EventEmitter {
         }
     }
 
-    private async executeBatchHandler(messages: Message[]) {
+    private async executeBatchHandler(messages: Message[]): Promise<BatchProcessingResult> {
         let timeout: TimeoutResponse
         try {
             if (this.handleMessageTimeout) {
                 timeout = createTimeout(this.handleMessageTimeout)
-                await Promise.race([this.handleMessageBatch(messages), timeout.pending])
+                const result = await Promise.race([this.handleMessageBatch(messages), timeout.pending])
+                if (!result) {
+                    throw new Error("Batch handler did not return a result.")
+                }
+                return result
             } else {
-                await this.handleMessageBatch(messages)
+                return await this.handleMessageBatch(messages)
             }
         } catch (err) {
             if (err instanceof TimeoutError) {

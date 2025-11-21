@@ -5,6 +5,11 @@ export interface TimeoutResponse {
     pending: Promise<void>
 }
 
+export interface BatchProcessingResult {
+    successful: Message[]
+    failed: Message[]
+}
+
 export type ConsumerOptions = {
     queueUrl: string
     attributeNames?: string[]
@@ -22,7 +27,7 @@ export type ConsumerOptions = {
     handleMessageTimeout?: number
 
     handleMessage?: (message: Message) => Promise<void>
-    handleMessageBatch?: (messages: Message[]) => Promise<void>
+    handleMessageBatch?: (messages: Message[]) => Promise<BatchProcessingResult>
     /**
      * Function to group messages in batch. If `null` the batch is returned as is.
      */
