@@ -1,5 +1,11 @@
 
 
+## [6.0.0](https://github.com/FigurePOS/sqs-consumer-2/compare/v5.12.0...v6.0.0) (2025-11-24)
+
+### Features
+
+* returning successful and failed messages in batch process handler FGR3-8035 ([#23](https://github.com/FigurePOS/sqs-consumer-2/issues/23)) ([db9435f](https://github.com/FigurePOS/sqs-consumer-2/commit/db9435feaa2d17737537e1f939eac1c9c5a9c16e))
+
 ## [5.12.0](https://github.com/FigurePOS/sqs-consumer-2/compare/v5.11.0...v5.12.0) (2024-12-27)
 
 ### Features
