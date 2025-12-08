@@ -350,6 +350,10 @@ export class Consumer extends EventEmitter {
     }
 
     private async deleteMessages(messages: Message[]) {
+        if (!messages.length) {
+            this.emitPendingStatus()
+            return
+        }
         const deleteParams = {
             QueueUrl: this.queueUrl,
             Entries: messages.map((message) => ({
