@@ -1,5 +1,11 @@
 
 
+## [6.0.1](https://github.com/FigurePOS/sqs-consumer-2/compare/v6.0.0...v6.0.1) (2025-12-08)
+
+### Bug Fixes
+
+* do not call delete batch command if there are no messages to delete ([#24](https://github.com/FigurePOS/sqs-consumer-2/issues/24)) ([0ea02fb](https://github.com/FigurePOS/sqs-consumer-2/commit/0ea02fb702c91cff34ffd53532203ebb8b6170ee))
+
 ## [6.0.0](https://github.com/FigurePOS/sqs-consumer-2/compare/v5.12.0...v6.0.0) (2025-11-24)
 
 ### Features
