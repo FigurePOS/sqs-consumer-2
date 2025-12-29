@@ -1,5 +1,11 @@
 
 
+## [8.0.0](https://github.com/FigurePOS/sqs-consumer-2/compare/v6.0.1...v8.0.0) (2025-12-29)
+
+### Chores
+
+* update aws sdk to version 3.957.0 FGR3-7649 ([#25](https://github.com/FigurePOS/sqs-consumer-2/issues/25)) ([448ff66](https://github.com/FigurePOS/sqs-consumer-2/commit/448ff66d77dd608032426a844ffc62fcc823e248))
+
 ## [6.0.1](https://github.com/FigurePOS/sqs-consumer-2/compare/v6.0.0...v6.0.1) (2025-12-08)
 
 ### Bug Fixes

@@ -1,6 +1,6 @@
 {
     "name": "@figurepos/sqs-consumer",
-    "version": "7.0.0",
+    "version": "8.0.0",
     "description": "SQS Consumer",
     "scripts": {
         "build": "npm run clean && ./node_modules/.bin/tsc",
