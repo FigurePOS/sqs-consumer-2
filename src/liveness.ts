@@ -2,22 +2,22 @@
 export const DEFAULT_POLL_RECEIVE_TIMEOUT_MS = 35_000
 
 /**
- * Tracks SQS long-poll cycle progress for ALB /ping liveness.
+ * Tracks SQS long-poll activity for ALB /ping liveness.
  * Distinct from visibility-timeout heartbeat (heartbeatInterval on Consumer).
  */
 export class PollLiveness {
-    private lastReceiveMessageCompletedAt: number
+    private lastPollActivityAt: number
     private receiveMessageStartedAt: number | null
     private readonly pollReceiveTimeoutMs: number
 
     constructor(pollReceiveTimeoutMs: number = DEFAULT_POLL_RECEIVE_TIMEOUT_MS) {
         this.pollReceiveTimeoutMs = pollReceiveTimeoutMs
-        this.lastReceiveMessageCompletedAt = Date.now()
+        this.lastPollActivityAt = Date.now()
         this.receiveMessageStartedAt = null
     }
 
     markStarted(): void {
-        this.lastReceiveMessageCompletedAt = Date.now()
+        this.lastPollActivityAt = Date.now()
         this.receiveMessageStartedAt = null
     }
 
@@ -26,29 +26,29 @@ export class PollLiveness {
     }
 
     onPollCompleted(): void {
-        this.lastReceiveMessageCompletedAt = Date.now()
+        this.lastPollActivityAt = Date.now()
         this.receiveMessageStartedAt = null
     }
 
-    getLastPollCompletedAt(): number {
-        return this.lastReceiveMessageCompletedAt
+    onConsumerError(): void {
+        this.lastPollActivityAt = Date.now()
     }
 
-    secondsSincePollCompleted(nowMs: number = Date.now()): number {
-        return Math.floor((nowMs - this.lastReceiveMessageCompletedAt) / 1000)
+    getLastPollActivityAt(): number {
+        return this.lastPollActivityAt
     }
 
     secondsSincePollActivity(nowMs: number = Date.now()): number {
         if (this.receiveMessageStartedAt !== null && nowMs - this.receiveMessageStartedAt > this.pollReceiveTimeoutMs) {
             return Math.floor((nowMs - this.receiveMessageStartedAt) / 1000)
         }
-        return this.secondsSincePollCompleted(nowMs)
+        return Math.floor((nowMs - this.lastPollActivityAt) / 1000)
     }
 
     isPollHealthy(maxStaleSeconds: number = 60, nowMs: number = Date.now()): boolean {
         if (this.receiveMessageStartedAt !== null && nowMs - this.receiveMessageStartedAt > this.pollReceiveTimeoutMs) {
             return false
         }
-        return this.secondsSincePollCompleted(nowMs) <= maxStaleSeconds
+        return this.secondsSincePollActivity(nowMs) <= maxStaleSeconds
     }
 }

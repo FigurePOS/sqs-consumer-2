@@ -25,10 +25,10 @@ describe("PollLiveness", () => {
         clock.tick(61_000)
 
         assert.equal(liveness.isPollHealthy(60), false)
-        assert.equal(liveness.secondsSincePollCompleted(), 61)
+        assert.equal(liveness.secondsSincePollActivity(), 61)
     })
 
-    it("onPollCompleted resets completed staleness", () => {
+    it("onPollCompleted resets activity staleness", () => {
         const liveness = new PollLiveness(35_000)
 
         clock.tick(50_000)
@@ -37,7 +37,7 @@ describe("PollLiveness", () => {
         clock.tick(50_000)
 
         assert.equal(liveness.isPollHealthy(60), true)
-        assert.equal(liveness.secondsSincePollCompleted(), 50)
+        assert.equal(liveness.secondsSincePollActivity(), 50)
     })
 
     it("becomes unhealthy when receive stays in flight past receiveTimeoutMs", () => {
@@ -59,5 +59,28 @@ describe("PollLiveness", () => {
         clock.tick(50_000)
 
         assert.equal(liveness.isPollHealthy(60), true)
+    })
+
+    it("onConsumerError resets activity staleness", () => {
+        const liveness = new PollLiveness(35_000)
+
+        clock.tick(50_000)
+        liveness.onConsumerError()
+        clock.tick(50_000)
+
+        assert.equal(liveness.isPollHealthy(60), true)
+        assert.equal(liveness.secondsSincePollActivity(), 50)
+        assert.equal(liveness.getLastPollActivityAt(), Date.parse("2026-06-04T12:00:50.000Z"))
+    })
+
+    it("onConsumerError does not hide a hung receive", () => {
+        const liveness = new PollLiveness(35_000)
+
+        liveness.onPollStarted()
+        clock.tick(36_000)
+        liveness.onConsumerError()
+
+        assert.equal(liveness.isPollHealthy(60), false)
+        assert.equal(liveness.secondsSincePollActivity(), 36)
     })
 })

@@ -114,6 +114,9 @@ export class Consumer extends EventEmitter {
     }
 
     emit<T extends keyof Events>(event: T, ...args: Events[T]) {
+        if (event === "error") {
+            this.pollLiveness.onConsumerError()
+        }
         return super.emit(event, ...args)
     }
 
@@ -129,12 +132,8 @@ export class Consumer extends EventEmitter {
         return !this.stopped
     }
 
-    public getLastPollCompletedAt(): number {
-        return this.pollLiveness.getLastPollCompletedAt()
-    }
-
-    public secondsSincePollCompleted(): number {
-        return this.pollLiveness.secondsSincePollCompleted()
+    public getLastPollActivityAt(): number {
+        return this.pollLiveness.getLastPollActivityAt()
     }
 
     public secondsSincePollActivity(): number {
