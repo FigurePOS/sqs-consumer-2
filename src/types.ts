@@ -10,6 +10,20 @@ export interface BatchProcessingResult {
     failed: Message[]
 }
 
+export type PollLivenessWatchdogOptions = {
+    /**
+     * Maximum seconds since the last completed long-poll before the watchdog fires.
+     * @default 60
+     */
+    maxStaleSeconds?: number
+    /**
+     * How often the watchdog checks poll liveness.
+     * @default 10000
+     */
+    checkIntervalMs?: number
+    onStale: () => void
+}
+
 export type ConsumerOptions = {
     queueUrl: string
     attributeNames?: string[]
@@ -22,6 +36,12 @@ export type ConsumerOptions = {
     pollingWaitTimeMs?: number
     terminateVisibilityTimeout?: boolean
     heartbeatInterval?: number
+    /**
+     * Maximum time a single ReceiveMessage long-poll may run before poll liveness is unhealthy.
+     * @default max(35000, waitTimeSeconds * 1000 + 5000)
+     */
+    pollReceiveTimeoutMs?: number
+    pollLivenessWatchdog?: PollLivenessWatchdogOptions
     sqs?: SQSClient
     region?: string
     handleMessageTimeout?: number
@@ -53,6 +73,7 @@ export interface Events {
     message_batch_received: [Message[]]
     message_batch_processed: [Message[], any]
     batch_processing_error: [Error, Message[]]
+    poll_liveness_stale: []
 }
 
 export type PendingStatus = {

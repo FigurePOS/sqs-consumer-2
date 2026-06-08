@@ -1,4 +1,11 @@
 
+## [8.1.0] - 2026-06-04
+
+### Features
+
+* add poll liveness tracking for ALB `/ping` health checks (`isPollHealthy`, `secondsSincePollActivity`, etc.)
+* add optional `pollLivenessWatchdog` and `poll_liveness_stale` event
+* add `pollReceiveTimeoutMs` option (default `max(35000, waitTimeSeconds * 1000 + 5000)`)
 
 ## [8.0.0](https://github.com/FigurePOS/sqs-consumer-2/compare/v6.0.1...v8.0.0) (2025-12-29)
 

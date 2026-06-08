@@ -1,6 +1,6 @@
 {
     "name": "@figurepos/sqs-consumer",
-    "version": "8.0.0",
+    "version": "8.1.0",
     "description": "SQS Consumer",
     "scripts": {
         "build": "npm run clean && ./node_modules/.bin/tsc",
@@ -11,11 +11,10 @@
         "lint": "./node_modules/.bin/eslint '*/**/*.{js,json,ts}'",
         "lint:fix": "./node_modules/.bin/eslint '*/**/*.{js,json,ts}' --quiet --fix",
         "posttest": "npm run lint",
-        "prepublish": "npm run build",
-        "pretest": "npm run build",
+        "prepublishOnly": "npm run build",
         "prettier:check": "./node_modules/.bin/prettier --check '**/*.js' '**/*.json' '**/*.ts'",
         "prettier:fix": "./node_modules/.bin/prettier --write '**/*.js' '**/*.json' '**/*.ts'",
-        "release": "npm run build && ./node_modules/.bin/release-it",
+        "release": "./node_modules/.bin/release-it",
         "test": "mocha --recursive --full-trace --exit",
         "tsc": "./node_modules/.bin/tsc --noEmit",
         "watch": "tsc --watch"

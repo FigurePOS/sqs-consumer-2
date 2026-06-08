@@ -13,12 +13,14 @@ import {
 import { EventEmitter } from "events"
 import { autoBind } from "./bind"
 import { SQSError, TimeoutError } from "./errors"
+import { DEFAULT_POLL_RECEIVE_TIMEOUT_MS, PollLiveness } from "./liveness"
 import {
     BatchProcessingResult,
     ConsumerOptions,
     Events,
     PendingMessage,
     PendingMessages,
+    PollLivenessWatchdogOptions,
     TimeoutResponse,
 } from "./types"
 import {
@@ -52,11 +54,14 @@ export class Consumer extends EventEmitter {
     private readonly sqs: SQSClient
     private readonly batchProcessingGroupFunction: ((batch: PendingMessage[]) => PendingMessage[][]) | null
     private readonly transformMessages: (messages: Message[]) => Message[]
+    private readonly pollLiveness: PollLiveness
+    private readonly pollLivenessWatchdog: PollLivenessWatchdogOptions | null
     private pendingMessages: PendingMessages
 
     private stopped: boolean
     private pollingStopped: boolean
     private heartbeatTimeout: NodeJS.Timeout
+    private pollLivenessWatchdogInterval: NodeJS.Timeout | null
 
     constructor(options: ConsumerOptions) {
         super()
@@ -80,7 +85,14 @@ export class Consumer extends EventEmitter {
         this.waitTimeSeconds = options.waitTimeSeconds || 20
         this.authenticationErrorTimeout = options.authenticationErrorTimeout || 10000
         this.pollingWaitTimeMs = options.pollingWaitTimeMs || 10
+        this.pollLivenessWatchdog = options.pollLivenessWatchdog ?? null
+        this.pollLivenessWatchdogInterval = null
         this.pendingMessages = []
+
+        const pollReceiveTimeoutMs =
+            options.pollReceiveTimeoutMs ??
+            Math.max(DEFAULT_POLL_RECEIVE_TIMEOUT_MS, this.waitTimeSeconds * 1000 + 5000)
+        this.pollLiveness = new PollLiveness(pollReceiveTimeoutMs)
 
         this.sqs =
             options.sqs ||
@@ -102,6 +114,9 @@ export class Consumer extends EventEmitter {
     }
 
     emit<T extends keyof Events>(event: T, ...args: Events[T]) {
+        if (event === "error") {
+            this.pollLiveness.markConsumerError()
+        }
         return super.emit(event, ...args)
     }
 
@@ -117,6 +132,18 @@ export class Consumer extends EventEmitter {
         return !this.stopped
     }
 
+    public getLastPollActivityTimestamp(): number {
+        return this.pollLiveness.getLastPollActivityTimestamp()
+    }
+
+    public secondsSincePollActivity(): number {
+        return this.pollLiveness.secondsSincePollActivity()
+    }
+
+    public isPollHealthy(maxStaleSeconds: number = 60): boolean {
+        return this.pollLiveness.isPollHealthy(maxStaleSeconds)
+    }
+
     public static create(options: ConsumerOptions): Consumer {
         return new Consumer(options)
     }
@@ -124,14 +151,17 @@ export class Consumer extends EventEmitter {
     public start(): void {
         if (this.stopped) {
             this.stopped = false
+            this.pollLiveness.markStarted()
             this.pollSqs()
             this.startHeartbeat()
+            this.startPollLivenessWatchdog()
         }
     }
 
     public stop(): void {
         this.stopped = true
         this.stopHeartbeat()
+        this.stopPollLivenessWatchdog()
     }
 
     private pollSqs(): void {
@@ -325,9 +355,13 @@ export class Consumer extends EventEmitter {
     }
 
     private async receiveMessage(params: ReceiveMessageRequest): Promise<ReceiveMessageResult> {
+        this.pollLiveness.markPollStarted()
         try {
-            return await this.sqs.send(new ReceiveMessageCommand(params))
+            const result = await this.sqs.send(new ReceiveMessageCommand(params))
+            this.pollLiveness.markPollCompleted()
+            return result
         } catch (err) {
+            this.pollLiveness.markPollCompleted()
             throw toSQSError(err, `SQS receive message failed: ${err.message}`)
         }
     }
@@ -458,7 +492,7 @@ export class Consumer extends EventEmitter {
                 }),
             )
         } catch (err) {
-            this.emit("error", toSQSError(err, `Error changing visibility timeout: ${err.message}`), message)
+            this.emitConsumerError(toSQSError(err, `Error changing visibility timeout: ${err.message}`), message)
         }
     }
 
@@ -473,7 +507,7 @@ export class Consumer extends EventEmitter {
     private emitError(err: Error, messages: Message[]): void
     private emitError(err: Error, messageOrMessages: Message | Message[]): void {
         if (err.name === SQSError.name) {
-            this.emit("error", err, messageOrMessages)
+            this.emitConsumerError(err, messageOrMessages)
             return
         }
         if (err instanceof TimeoutError) {
@@ -485,6 +519,15 @@ export class Consumer extends EventEmitter {
             return
         }
         this.emit("processing_error", err, messageOrMessages)
+    }
+
+    private emitConsumerError(err: Error): boolean
+    private emitConsumerError(err: Error, messageOrMessages: Message | Message[]): boolean
+    private emitConsumerError(err: Error, messageOrMessages?: Message | Message[]): boolean {
+        if (messageOrMessages === undefined) {
+            return this.emit("error", err)
+        }
+        return this.emit("error", err, messageOrMessages)
     }
 
     private async changeVisibilityTimeoutOfBatch(batch: PendingMessages, timeout: number, elapsedSeconds: number) {
@@ -510,7 +553,7 @@ export class Consumer extends EventEmitter {
         try {
             return await this.sqs.send(new ChangeMessageVisibilityBatchCommand(params))
         } catch (err) {
-            this.emit("error", toSQSError(err, `Error changing visibility timeout batch: ${err.message}`), messages)
+            this.emitConsumerError(toSQSError(err, `Error changing visibility timeout batch: ${err.message}`), messages)
         }
     }
 
@@ -528,6 +571,29 @@ export class Consumer extends EventEmitter {
 
     private stopHeartbeat(): void {
         clearInterval(this.heartbeatTimeout)
+    }
+
+    private startPollLivenessWatchdog(): void {
+        if (!this.pollLivenessWatchdog) {
+            return
+        }
+
+        const maxStaleSeconds = this.pollLivenessWatchdog.maxStaleSeconds ?? 60
+        const checkIntervalMs = this.pollLivenessWatchdog.checkIntervalMs ?? 10_000
+
+        this.pollLivenessWatchdogInterval = setInterval(() => {
+            if (!this.isPollHealthy(maxStaleSeconds)) {
+                this.emit("poll_liveness_stale")
+                this.pollLivenessWatchdog?.onStale()
+            }
+        }, checkIntervalMs)
+    }
+
+    private stopPollLivenessWatchdog(): void {
+        if (this.pollLivenessWatchdogInterval) {
+            clearInterval(this.pollLivenessWatchdogInterval)
+            this.pollLivenessWatchdogInterval = null
+        }
     }
 
     private isBatchProcessing(): boolean {
