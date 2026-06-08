@@ -21,11 +21,11 @@ export class PollLiveness {
         this.receiveMessageStartedTimestamp = null
     }
 
-    onPollStarted(): void {
+    markPollStarted(): void {
         this.receiveMessageStartedTimestamp = Date.now()
     }
 
-    onPollCompleted(): void {
+    markPollCompleted(): void {
         this.lastPollActivityTimestamp = Date.now()
         this.receiveMessageStartedTimestamp = null
     }

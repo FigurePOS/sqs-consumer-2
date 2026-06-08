@@ -355,13 +355,13 @@ export class Consumer extends EventEmitter {
     }
 
     private async receiveMessage(params: ReceiveMessageRequest): Promise<ReceiveMessageResult> {
-        this.pollLiveness.onPollStarted()
+        this.pollLiveness.markPollStarted()
         try {
             const result = await this.sqs.send(new ReceiveMessageCommand(params))
-            this.pollLiveness.onPollCompleted()
+            this.pollLiveness.markPollCompleted()
             return result
         } catch (err) {
-            this.pollLiveness.onPollCompleted()
+            this.pollLiveness.markPollCompleted()
             throw toSQSError(err, `SQS receive message failed: ${err.message}`)
         }
     }
