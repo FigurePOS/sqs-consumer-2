@@ -6,47 +6,47 @@ export const DEFAULT_POLL_RECEIVE_TIMEOUT_MS = 35_000
  * Distinct from visibility-timeout heartbeat (heartbeatInterval on Consumer).
  */
 export class PollLiveness {
-    private lastPollActivityAt: number
-    private receiveMessageStartedAt: number | null
+    private lastPollActivityTimestamp: number
+    private receiveMessageStartedTimestamp: number | null
     private readonly pollReceiveTimeoutMs: number
 
     constructor(pollReceiveTimeoutMs: number = DEFAULT_POLL_RECEIVE_TIMEOUT_MS) {
         this.pollReceiveTimeoutMs = pollReceiveTimeoutMs
-        this.lastPollActivityAt = Date.now()
-        this.receiveMessageStartedAt = null
+        this.lastPollActivityTimestamp = Date.now()
+        this.receiveMessageStartedTimestamp = null
     }
 
     markStarted(): void {
-        this.lastPollActivityAt = Date.now()
-        this.receiveMessageStartedAt = null
+        this.lastPollActivityTimestamp = Date.now()
+        this.receiveMessageStartedTimestamp = null
     }
 
     onPollStarted(): void {
-        this.receiveMessageStartedAt = Date.now()
+        this.receiveMessageStartedTimestamp = Date.now()
     }
 
     onPollCompleted(): void {
-        this.lastPollActivityAt = Date.now()
-        this.receiveMessageStartedAt = null
+        this.lastPollActivityTimestamp = Date.now()
+        this.receiveMessageStartedTimestamp = null
     }
 
-    onConsumerError(): void {
-        this.lastPollActivityAt = Date.now()
+    markConsumerError(): void {
+        this.lastPollActivityTimestamp = Date.now()
     }
 
-    getLastPollActivityAt(): number {
-        return this.lastPollActivityAt
+    getLastPollActivityTimestamp(): number {
+        return this.lastPollActivityTimestamp
     }
 
     secondsSincePollActivity(nowMs: number = Date.now()): number {
-        if (this.receiveMessageStartedAt !== null && nowMs - this.receiveMessageStartedAt > this.pollReceiveTimeoutMs) {
-            return Math.floor((nowMs - this.receiveMessageStartedAt) / 1000)
+        if (this.receiveMessageStartedTimestamp !== null && nowMs - this.receiveMessageStartedTimestamp > this.pollReceiveTimeoutMs) {
+            return Math.floor((nowMs - this.receiveMessageStartedTimestamp) / 1000)
         }
-        return Math.floor((nowMs - this.lastPollActivityAt) / 1000)
+        return Math.floor((nowMs - this.lastPollActivityTimestamp) / 1000)
     }
 
     isPollHealthy(maxStaleSeconds: number = 60, nowMs: number = Date.now()): boolean {
-        if (this.receiveMessageStartedAt !== null && nowMs - this.receiveMessageStartedAt > this.pollReceiveTimeoutMs) {
+        if (this.receiveMessageStartedTimestamp !== null && nowMs - this.receiveMessageStartedTimestamp > this.pollReceiveTimeoutMs) {
             return false
         }
         return this.secondsSincePollActivity(nowMs) <= maxStaleSeconds

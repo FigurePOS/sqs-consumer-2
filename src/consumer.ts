@@ -115,7 +115,7 @@ export class Consumer extends EventEmitter {
 
     emit<T extends keyof Events>(event: T, ...args: Events[T]) {
         if (event === "error") {
-            this.pollLiveness.onConsumerError()
+            this.pollLiveness.markConsumerError()
         }
         return super.emit(event, ...args)
     }
@@ -132,8 +132,8 @@ export class Consumer extends EventEmitter {
         return !this.stopped
     }
 
-    public getLastPollActivityAt(): number {
-        return this.pollLiveness.getLastPollActivityAt()
+    public getLastPollActivityTimestamp(): number {
+        return this.pollLiveness.getLastPollActivityTimestamp()
     }
 
     public secondsSincePollActivity(): number {
@@ -492,7 +492,7 @@ export class Consumer extends EventEmitter {
                 }),
             )
         } catch (err) {
-            this.emit("error", toSQSError(err, `Error changing visibility timeout: ${err.message}`), message)
+            this.emitConsumerError(toSQSError(err, `Error changing visibility timeout: ${err.message}`), message)
         }
     }
 
@@ -507,7 +507,7 @@ export class Consumer extends EventEmitter {
     private emitError(err: Error, messages: Message[]): void
     private emitError(err: Error, messageOrMessages: Message | Message[]): void {
         if (err.name === SQSError.name) {
-            this.emit("error", err, messageOrMessages)
+            this.emitConsumerError(err, messageOrMessages)
             return
         }
         if (err instanceof TimeoutError) {
@@ -519,6 +519,15 @@ export class Consumer extends EventEmitter {
             return
         }
         this.emit("processing_error", err, messageOrMessages)
+    }
+
+    private emitConsumerError(err: Error): boolean
+    private emitConsumerError(err: Error, messageOrMessages: Message | Message[]): boolean
+    private emitConsumerError(err: Error, messageOrMessages?: Message | Message[]): boolean {
+        if (messageOrMessages === undefined) {
+            return this.emit("error", err)
+        }
+        return this.emit("error", err, messageOrMessages)
     }
 
     private async changeVisibilityTimeoutOfBatch(batch: PendingMessages, timeout: number, elapsedSeconds: number) {
@@ -544,7 +553,7 @@ export class Consumer extends EventEmitter {
         try {
             return await this.sqs.send(new ChangeMessageVisibilityBatchCommand(params))
         } catch (err) {
-            this.emit("error", toSQSError(err, `Error changing visibility timeout batch: ${err.message}`), messages)
+            this.emitConsumerError(toSQSError(err, `Error changing visibility timeout batch: ${err.message}`), messages)
         }
     }
 

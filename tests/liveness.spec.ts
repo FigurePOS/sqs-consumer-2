@@ -61,24 +61,24 @@ describe("PollLiveness", () => {
         assert.equal(liveness.isPollHealthy(60), true)
     })
 
-    it("onConsumerError resets activity staleness", () => {
+    it("markConsumerError resets activity staleness", () => {
         const liveness = new PollLiveness(35_000)
 
         clock.tick(50_000)
-        liveness.onConsumerError()
+        liveness.markConsumerError()
         clock.tick(50_000)
 
         assert.equal(liveness.isPollHealthy(60), true)
         assert.equal(liveness.secondsSincePollActivity(), 50)
-        assert.equal(liveness.getLastPollActivityAt(), Date.parse("2026-06-04T12:00:50.000Z"))
+        assert.equal(liveness.getLastPollActivityTimestamp(), Date.parse("2026-06-04T12:00:50.000Z"))
     })
 
-    it("onConsumerError does not hide a hung receive", () => {
+    it("markConsumerError does not hide a hung receive", () => {
         const liveness = new PollLiveness(35_000)
 
         liveness.onPollStarted()
         clock.tick(36_000)
-        liveness.onConsumerError()
+        liveness.markConsumerError()
 
         assert.equal(liveness.isPollHealthy(60), false)
         assert.equal(liveness.secondsSincePollActivity(), 36)
