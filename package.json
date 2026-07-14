@@ -28,7 +28,7 @@
         "@aws-sdk/client-sqs": "~3.1085.0",
         "@figuredev/eslint-config-node": "^2.0.1",
         "@figuredev/prettier-config": "^2.1.0",
-        "@release-it/conventional-changelog": "^9.0.3",
+        "@release-it/conventional-changelog": "^11.0.1",
         "@smithy/smithy-client": "^4.0.0",
         "@types/chai": "^4.2.11",
         "@types/mocha": "^8.2.3",
@@ -43,7 +43,7 @@
         "mocha": "^8.4.0",
         "p-event": "^4.2.0",
         "prettier": "^3.4.2",
-        "release-it": "^17.10.0",
+        "release-it": "^20.2.1",
         "sinon": "^9.2.4",
         "ts-node": "^10.9.2",
         "typescript": "^5.7.2"
