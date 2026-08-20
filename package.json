@@ -31,7 +31,7 @@
     "license": "Apache-2.0",
     "devDependencies": {
         "@aws-sdk/client-sqs": "~3.1085.0",
-        "@figuredev/eslint-config-node": "^2.0.1",
+        "@figuredev/eslint-config-node": "^3.10.0",
         "@figuredev/prettier-config": "^2.1.0",
         "@release-it/conventional-changelog": "^9.0.3",
         "@smithy/smithy-client": "^4.0.0",
@@ -39,19 +39,17 @@
         "@types/mocha": "^8.2.3",
         "@types/node": "^22.10.2",
         "@types/sinon": "^9.0.11",
-        "@typescript-eslint/eslint-plugin": "^5.62.0",
-        "@typescript-eslint/parser": "^5.62.0",
         "chai": "^4.5.0",
         "depcheck": "^1.4.7",
-        "eslint": "^8.57.1",
+        "eslint": "^10.4.0",
         "license-compliance": "^3.0.1",
         "mocha": "^8.4.0",
         "p-event": "^4.2.0",
-        "prettier": "^3.4.2",
+        "prettier": "^3.8.3",
         "release-it": "^17.10.0",
         "sinon": "^9.2.4",
         "ts-node": "^10.9.2",
-        "typescript": "^5.7.2"
+        "typescript": "^6.0.0"
     },
     "peerDependencies": {
         "@aws-sdk/client-sqs": "~3.1085.0"

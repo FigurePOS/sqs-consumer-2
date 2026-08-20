@@ -61,7 +61,7 @@ export const isPollingReadyForNextReceive = (batchSize: number, pendingSize: num
 
 export const createTimeout = (duration: number): TimeoutResponse => {
     let timeout = null
-    const pending: Promise<void> = new Promise((_, reject) => {
+    const pending = new Promise<void>((_, reject) => {
         timeout = setTimeout((): void => {
             reject(new TimeoutError())
         }, duration)
