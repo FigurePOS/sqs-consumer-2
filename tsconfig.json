@@ -8,7 +8,7 @@
         "declaration": true,
         "rootDir": "./src",
         "outDir": "./lib",
-        "types": ["node"],
+        "types": ["node", "mocha"],
         "skipLibCheck": true,
         "esModuleInterop": true
     },

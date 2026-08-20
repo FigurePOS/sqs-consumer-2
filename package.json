@@ -58,6 +58,12 @@
         "spec": "tests/**/**/*.ts",
         "require": "ts-node/register"
     },
+    "ts-node": {
+        "compilerOptions": {
+            "rootDir": ".",
+            "declaration": false
+        }
+    },
     "prettier": "@figuredev/prettier-config",
     "publishConfig": {
         "access": "restricted",

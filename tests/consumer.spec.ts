@@ -8,7 +8,7 @@ import {
 } from "@aws-sdk/client-sqs"
 import { Command } from "@smithy/smithy-client"
 import { assert } from "chai"
-import * as pEvent from "p-event"
+import pEvent from "p-event"
 import * as sinon from "sinon"
 import { Consumer } from "../src/consumer"
 
