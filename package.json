@@ -2,22 +2,27 @@
     "name": "@figurepos/sqs-consumer",
     "version": "8.1.0",
     "description": "SQS Consumer",
+    "engines": {
+        "node": ">=24.0.0",
+        "pnpm": ">=11"
+    },
+    "packageManager": "pnpm@11.20.0",
     "scripts": {
-        "build": "npm run clean && ./node_modules/.bin/tsc",
+        "build": "pnpm run clean && ./node_modules/.bin/tsc",
         "check:deps": "./node_modules/.bin/depcheck",
         "check:licenses": "./node_modules/.bin/license-compliance --production --allow=\"0BSD;Apache-2.0;BSD-1-Clause;BSD-2-Clause;BSD-3-Clause;ISC;MIT;MPL-1.0;MPL-1.1;MPL-2.0;Unlicense\" --report=detailed",
-        "ci:test": "npm run tsc && npm run lint && npm run test",
+        "ci:test": "pnpm run tsc && pnpm run lint && pnpm run test",
         "clean": "rm -fr lib/*",
         "lint": "./node_modules/.bin/eslint '*/**/*.{js,json,ts}'",
         "lint:fix": "./node_modules/.bin/eslint '*/**/*.{js,json,ts}' --quiet --fix",
-        "posttest": "npm run lint",
-        "prepublishOnly": "npm run build",
+        "posttest": "pnpm run lint",
+        "prepublishOnly": "pnpm run build",
         "prettier:check": "./node_modules/.bin/prettier --check '**/*.js' '**/*.json' '**/*.ts'",
         "prettier:fix": "./node_modules/.bin/prettier --write '**/*.js' '**/*.json' '**/*.ts'",
         "release": "./node_modules/.bin/release-it",
         "test": "mocha --recursive --full-trace --exit",
         "tsc": "./node_modules/.bin/tsc --noEmit",
-        "watch": "tsc --watch"
+        "watch": "./node_modules/.bin/tsc --watch"
     },
     "repository": {
         "type": "git",

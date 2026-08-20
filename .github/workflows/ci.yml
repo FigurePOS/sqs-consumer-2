@@ -17,38 +17,40 @@ jobs:
   check:
     runs-on: blacksmith-2vcpu-ubuntu-2204
     steps:
-      - uses: actions/checkout@v4
-      
+      - uses: actions/checkout@v6
+
       - name: Set Up Node.js
-        uses: FigurePOS/github-actions/.github/actions/node-setup@v2
+        uses: FigurePOS/github-actions/.github/actions/node-setup@v6
 
       - name: Install Dependencies
-        uses: FigurePOS/github-actions/.github/actions/node-npm-install@v2
+        uses: FigurePOS/github-actions/.github/actions/node-pnpm-install@v6
 
       - name: License Compliance Check
-        run: npm run check:licenses
+        run: pnpm run check:licenses
         shell: bash
 
       - name: Dependencies Check
-        run: npm run check:deps
+        run: pnpm run check:deps
         shell: bash
-  
+
   test:
     runs-on: blacksmith-2vcpu-ubuntu-2204
     steps:
-      - uses: actions/checkout@v4.1.0
+      - uses: actions/checkout@v6
 
       - name: Set Up Node.js
-        uses: FigurePOS/github-actions/.github/actions/node-setup@v2
+        uses: FigurePOS/github-actions/.github/actions/node-setup@v6
 
       - name: Install Dependencies
-        uses: FigurePOS/github-actions/.github/actions/node-npm-install@v2
+        uses: FigurePOS/github-actions/.github/actions/node-pnpm-install@v6
 
-      - run: npm run ci:test
+      - name: Run Tests
+        run: pnpm run ci:test
+        shell: bash
 
   # release:
   #   if: github.ref == 'refs/heads/master'
-  #   needs: 
+  #   needs:
   #     - check
   #     - test
   #   runs-on: blacksmith-2vcpu-ubuntu-2204
@@ -56,23 +58,23 @@ jobs:
   #     contents: write
   #     packages: write
   #   steps:
-  #     - uses: actions/checkout@v4
-      
+  #     - uses: actions/checkout@v6
+  #
   #     - name: Set Up Node.js
-  #       uses: FigurePOS/github-actions/.github/actions/node-setup@v2
-
+  #       uses: FigurePOS/github-actions/.github/actions/node-setup@v6
+  #
   #     - name: Install Dependencies
-  #       uses: FigurePOS/github-actions/.github/actions/node-npm-install@v2
-        
+  #       uses: FigurePOS/github-actions/.github/actions/node-pnpm-install@v6
+  #
   #     - name: Configure Git
-  #       uses: FigurePOS/github-actions/.github/actions/git-configure-user@v2
-          
+  #       uses: FigurePOS/github-actions/.github/actions/git-configure-user@v6
+  #
   #     - name: Release
   #       uses: JoshuaKGoldberg/release-it-action@v0.2.3
   #       env:
   #         NPM_TOKEN: ${{ github.token }}
   #         GITHUB_TOKEN: ${{ github.token }}
-
+  #
   #     - name: Send Slack Notification About Failure
   #       if: failure() && github.ref == 'refs/heads/master'
   #       uses: FigurePOS/github-actions/.github/actions/buddy-notify-fail-service@v2

@@ -1,0 +1,9 @@
+allowBuilds:
+    esbuild: false
+    protobufjs: false
+    unrs-resolver: true
+    unix-dgram: false
+minimumReleaseAge: 4320
+minimumReleaseAgeExclude:
+    - "@figuredev/*"
+    - "@figurepos/*"
