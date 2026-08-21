@@ -1,0 +1,11 @@
+allowBuilds:
+    esbuild: false
+    protobufjs: false
+    unrs-resolver: true
+    unix-dgram: false
+minimumReleaseAge: 4320
+minimumReleaseAgeExclude:
+    - "@figuredev/*"
+    - "@figurepos/*"
+overrides:
+    "@typescript-eslint/utils": "^8.59.4"

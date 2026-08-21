@@ -1,15 +1,17 @@
 {
     "compilerOptions": {
-        "lib": ["ESNext"],
-        "target": "ES6",
+        "lib": ["ES2023"],
+        "strict": false,
+        "target": "ES2022",
         "module": "commonjs",
         "sourceMap": true,
-        "moduleResolution": "node",
         "declaration": true,
         "rootDir": "./src",
         "outDir": "./lib",
-        "skipLibCheck": true
+        "types": ["node", "mocha"],
+        "skipLibCheck": true,
+        "esModuleInterop": true
     },
-    "include": ["src/**/*"],
+    "include": ["src/**/*.ts"],
     "exclude": ["node_modules", "**/*.spec.ts"]
 }
